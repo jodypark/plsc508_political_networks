@@ -1,0 +1,39 @@
+/* title block */
+h1.title { font-size: 28px; }
+h2.subtitle { font-size: 24px; }
+p.author, p.date { font-size: 22px; }
+
+/* section headers */
+h1 { font-size: 27px; }
+h2 { font-size: 24px; }
+h3 { font-size: 21px; }
+h4 { font-size: 16px; }
+
+/* match figure titles to the full-width, single-line table captions */
+table { width: 100%; }
+table caption,
+.figure > p.caption {
+  width: 100%;
+  padding: 8px 0;
+  margin: 0;
+  color: #777;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 1.42857143;
+  text-align: left;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+table caption { caption-side: top; }
+table th { white-space: nowrap; }
+
+/* keep numbered title above image; explanatory notes follow figure */
+.figure {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.figure > p.caption { order: -1; }
+.figure img { width: 100%; height: auto; }

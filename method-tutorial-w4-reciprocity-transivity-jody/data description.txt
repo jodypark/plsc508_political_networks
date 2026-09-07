@@ -1,0 +1,17 @@
+actors.pdf	list of actors and committees
+
+committee	committee membership relations; affiliation network
+ideol		four policy frames; affiliation network
+infrep		mutual influence attribution; one-mode network
+infrep47	mutual influence attribution; one-mode network; extended set of 47 actors
+intpos		policy beliefs, six core issues; affiliation network
+orgtypes	type of organization
+pol		political and strategic information exchange
+pol47		political and strategic information exchange; extended set of 47 actors
+scifrom		technical and scientific information exchange; information sources
+scito		technical and scientific information exchange; information targets
+
+survey-de.pdf	original questionnaire in German
+survey-en.pdf	English translation of the original questionnaire
+
+AJPS.R		R source code for Leifeld/Schneider, American Journal of Political Science

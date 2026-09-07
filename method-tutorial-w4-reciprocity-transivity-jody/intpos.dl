@@ -1,0 +1,72 @@
+DL
+NR=30, NC=6
+FORMAT = FULLMATRIX DIAGONAL PRESENT
+ROW LABELS:
+CEF
+BMA
+BMJ
+BMW
+VDB
+BBA
+IGC
+SPD
+CDU
+IHT
+VAA
+GSF
+BAM
+AGV
+BGC
+GDC
+BUND
+BBU
+BMT
+SRU
+UBA
+VCI
+EG 
+BML
+OECD
+BAU
+BGA
+FDP
+BMI
+DFG
+COLUMN LABELS:
+Selfregulation
+Bigsolution
+Notification
+Premanufacturing
+Newsubstances
+Levelplan
+DATA:
+  1  1  1  1  1  1
+  0  1  1  1  1  1
+  0  1  1  1  1  1
+  0  1  1  1  1  1
+  0  1  1  1 -1 -1
+  0  1  0  1  1  1
+  0  1 -1 -1 -1  1
+  0  0  1  1  1  1
+  0  0  1  1  1  1
+  0  0  1  0  1  1
+  0  0  1  1  1  1
+  0  0  1  1  1  1
+  0  0  0  0  0  0
+  0  0  0  0 -1 -1
+  0  0  0  0  0  0
+  0  0  0  0  0  0
+  0  0 -1 -1 -1 -1
+  0  0 -1 -1 -1 -1
+  0 -1  1  1  1  1
+  0 -1 -1 -1 -1 -1
+ -1  1  1  1  1  1
+ -1  1  1  1  1  1
+ -1  1  1  1  1  1
+ -1  1  0  1  1  1
+ -1  1  0  1  1  1
+ -1  1 -1 -1  1  1
+ -1  1 -1 -1 -1  1
+ -1  0  1  1 -1  1
+ -1 -1  1  1  1  1
+ -1 -1 -1 -1 -1 -1
