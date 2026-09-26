@@ -1,0 +1,13 @@
+﻿variable,type,rank,b,se
+polar,legislative,1,-0.742,0.217
+polar,legislative,2,-1.11,0.238
+polar,legislative,3,-1.852,0.222
+polar,oversight,1,-1.192,0.219
+polar,oversight,2,-1.296,0.239
+polar,oversight,3,-1.848,0.275
+comm,legislative,1,-1.682,0.324
+comm,legislative,2,-1.288,0.185
+comm,legislative,3,-0.678,0.245
+comm,oversight,1,-1.014,0.296
+comm,oversight,2,-1.528,0.233
+comm,oversight,3,-1.24,0.258
