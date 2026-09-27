@@ -1,0 +1,417 @@
+---
+title: |
+  \large \textbf{Replication \& Extension} 
+subtitle: |
+ PLSC 508: Draft 1 \vspace{0.2cm}
+author: "Jody Park"
+date: "`r Sys.Date()`"
+output:
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+    latex_engine: xelatex
+colorlinks: true
+urlcolor: blue
+linkcolor: blue
+fontsize: 11pt
+bibliography: "references.bib"
+csl: "apanodoi.csl"
+link-citations: true
+reference-section-title: References
+header-includes:
+  - \usepackage[capposition=top]{floatrow}
+  - \usepackage{placeins}   
+  - \usepackage{dcolumn}
+  - \usepackage{booktabs}
+  - \usepackage{siunitx}
+  - \usepackage{amsmath}
+  - \usepackage{enumerate}
+  - \usepackage[shortlabels]{enumitem}
+  - \usepackage[hang,flushmargin]{footmisc}	
+  - \usepackage{makecell}
+  - \usepackage{url}
+  - \usepackage{longtable}
+  - \setlength{\LTleft}{0pt plus 1fill}
+  - \setlength{\LTright}{0pt plus 1fill}
+  - \usepackage{graphicx}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{xcolor}
+  - \usepackage[most]{tcolorbox}
+  - \newtcolorbox{qbox}{enhanced,breakable,boxrule=0.5pt,arc=2mm,
+    colback=gray!10,colframe=black!50,left=6pt,right=6pt,top=6pt,bottom=6pt}
+  - \usepackage{fontspec}
+  - \usepackage[margin=1in]{geometry}
+  - \usepackage{titling}
+  - \setlength{\droptitle}{-1in}
+  - \usepackage{setspace}
+  - \setstretch{1.2} 
+---
+
+```{r setup, include = FALSE, message=FALSE, results=FALSE, echo = FALSE}
+# R libraries
+# data manipulation
+library(dplyr)
+library(haven)
+library(kableExtra)
+library(conflicted)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+
+# For figures
+knitr::opts_chunk$set(
+                      fig.width = 9, fig.height = 7, fig.retina = 3,
+                      out.width = "100%",
+                      cache = FALSE,
+                      echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE,
+                      hiline = TRUE
+                      )
+options(tinytex.verbose = TRUE)
+
+knitr::knit_hooks$set(plot = function (x, options) {
+  float_correct <- function(f, y, opts)  {
+    if (is.null(opts$regfloat) || opts$regfloat==FALSE)
+      paste0(f(y, opts), "\n\n\\FloatBarrier\n")
+    else
+      f(y, opts)
+  }
+  if (!is.null(options$out.width) || !is.null(options$out.height) ||
+      !is.null(options$out.extra) || options$fig.align != "default" ||
+      !is.null(options$fig.subcap)) {
+    if (is.null(options$fig.scap))
+      options$fig.scap = NA
+    return(float_correct(knitr:::hook_plot_tex, x, options))
+  }
+  return(float_correct(knitr:::hook_plot_md_base, x, options))
+})
+
+```
+
+
+# Instruction
+
+\begin{qbox}
+In the replication and extension paper, the results of a previous study must be fully
+reproduced and incorporated into the paper (possibly into the appendix). The replicated
+study must have been published in a peer reviewed journal or conference proceedings.
+The extension should include at least one network visualization, the use of one
+descriptive measure covered in Section Two of the course, and an application of one of
+the inferential or causal methods covered in Sections 3 and 4 of the course. Students are
+encouraged to select a dataset about which they have hypotheses regarding the variables
+and mechanisms underlying tie formation in the network. The schedule of deliverables,
+along with dates, is listed below. Note, one thing to check when you are selecting the
+study is that you can accurately reproduce the results of the original paper. Reproduction
+works best when the authors share both code and data from the study.
+
+\begin{enumerate}
+
+\item DUE 9/29: A PDF document that contains (1) a bibliographic reference to the study
+you plan to reproduce and (2) an embedded URL that links to your GitHub,
+OneDrive, Box or Dropbox account location where you have stored the replication
+data.
+
+\item DUE 10/27: An updated PDF that includes (1) a plot of the network to be studied in
+the replication and extension, and (2) visualizations of the distribution(s) of vertex
+attributes (e.g., a histogram of nodes’ incomes), and (3) a reproduction of the results
+in the original study. The document should still include a link to the repository that
+contains the data. But now the repository should also include the R code needed to
+generate all of the results in the PDF, as well as a README.txt file that defines the
+role of each file in the repository.
+
+\item DUE 11/17: An updated PDF that includes a descriptive investigation of the network
+using at least three of the methods covered in Section Two of the syllabus. The
+descriptive investigation should include a discussion regarding whether you think the
+descriptive measures illuminate anything unique or important regarding either the
+processes underlying the formation of the network or the consequences of the
+network structure for some outcome of interest.
+
+\item DUE 12/15: Submit complete final paper. An updated PDF that includes the
+aforementioned material along with a concisely described research objective, an
+associated literature review and an application of an inferential or causal method
+covered in Section 3 and/or 4 of the syllabus.
+
+\end{enumerate}
+
+
+\end{qbox}
+
+# Ban et al. (2026)
+
+I will replicate and extend @ban2026, "Bureaucrats in Congress: The Politics of Interbranch Information Sharing," published in *The Journal of Politics*. The extension examines agency ideology across the federal bureaucracy.
+
+## Replication Data
+
+The authors provide [replication data and code](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/RTYPSG). My [PLSC 508 repository](https://github.com/jodypark/plsc508_political_networks/tree/main/replication-extension) contains the project files and download instructions for the larger datasets.
+
+## Research Question
+
+- **The original research question**: How do partisan divides across the legislative and executive branches influence interbranch information sharing?
+
+- **Testing hypotheses** in @ban2026: I use H1 through H3 to summarize their expectations and appendix analysis.
+
+  - *H1*: Bureaucrats provide less analytical information to legislators from the party opposite the President.
+  - *H2*: This partisan gap is larger for political appointees. The evidence is stronger in oversight hearings.
+  - *H3*: The gap is larger when the agency's ideology aligns with the President. *Appendix Table B8* tests this expectation using a median split of agency ideology.
+
+\bigskip
+
+- **My research question**: Does agency ideology shape which legislators question an agency and the analytical information they receive? Does agency independence weaken the presidential partisan gap?
+
+  - @ban2026 already examine agency ideology and institutional differences. My extension asks whether continuous agency alignment helps explain the structure of questioning ties alongside the content of observed exchanges.
+
+  - Agencies develop policy commitments that can persist across administrations [@clinton2008; @richardson2018]. A legislator who opposes the President may still support an agency's mission. Officials may provide more analysis to these allies because they can use it to defend the agency's programs. Career officials may place greater weight on those commitments than presidential appointees do [@lewis2008]. Agency scores measure organizational preferences and reputations. They do not establish an individual witness's beliefs.
+
+  - Institutional opportunities also shape communication. @leifeld2012 find that preference similarity loses explanatory power once they account for opportunities to exchange information. In Congress, committee assignments determine much of this opportunity. I therefore compare ideological alignment within the set of legislators who could question an agency.
+
+- **Hypotheses**:
+
+  - **H4 (Agency alignment and content)**: Conditional on an exchange, bureaucrats provide more analytical information to legislators whose party is more closely aligned with the agency's ideological orientation.
+  - **H5 (Appointment status)**: This association is stronger for identified career officials than for presidential appointees requiring Senate confirmation (PAS). I test this expectation only where appointment status is known.
+  - **H6 (Structural independence)**: The presidential partisan gap is smaller in agencies with more independent decision makers [@selin2015]. Independence in policy review is a separate moderator because it concerns constraints beyond presidential personnel control.
+  - **H7 (Questioning ties)**: Among legislators with an opportunity to question an agency, greater agency alignment is associated with a higher probability of an observed questioning tie.
+
+H4 and H7 need not hold together. Opponents may question agencies to challenge their conduct. Officials may also supply analysis to persuade critics. These alternatives predict different patterns in questioning and response content. I will interpret the two outcomes together without treating either as a direct measure of cooperation.
+
+\newpage
+
+# Empirical Strategy
+
+The analysis proceeds in three steps:
+
+- 1. I first reproduce the published results with the authors' sample definitions and code.
+- 2. I then test H4 through H6 in their witness--legislator design.
+- 3. Finally, I test H7 in bipartite networks of legislators and agencies.
+
+**Why a network approach**:
+
+- Legislators repeatedly question overlapping sets of agencies. Committee jurisdiction can produce these patterns even without ideological sorting. A network model can represent dependence among ties [@cranmer2021].
+- I distinguish *questioning ties* from *content within exchanges*. The former records observed participation after an agency appears in a hearing. It does not reveal who sought an invitation or who declined one. Separate models describe these processes but do not correct selection into hearings.
+
+\bigskip
+
+## Research Design Overview
+
+- **Step 1 (Replication)**: Reproduce the main tables and figures, with appendix checks recorded in a replication log. Tables 2 through 4 and appendix Table B8 provide the baseline for this extension. The archive calls the B8 script `TABLE A8.do`. I will preserve the original output before changing any coding.
+  - *Table 2*: Bureaucratic Witnesses' Provision of Analytical Information
+  - *Table 3*: Nonbureaucratic Witnesses' Provision of Analytical Information
+  - *Table 4*: Divided Government and Information Transmission at the Aggregated Level
+  - *Appendix Table B8*: Incorporating Agency Ideology: President Aligned vs. Not-Aligned Agencies
+
+- **Step 2 (Pair-level extension)**: Add continuous agency alignment and independence interactions. Estimate legislative and oversight hearings separately. Compare baseline and extended models on the same sample.
+
+- **Step 3 (Network extension)**: Plot bipartite networks and summarize centrality, assortative mixing, and community structure. A bipartite exponential random graph model (ERGM) provides the main inferential method. A content model is supplementary.
+
+- Current plans for the submissions: 
+  - The 2nd draft submission (in October) will include the network plot, attribute distributions, and replicated results. 
+  - The 3rd draft submission (in November) will add the three descriptive analyses. 
+  - I will include the inferential model and diagnostics in the final paper.
+
+\bigskip
+
+## Data
+
+- `dyad_b.dta` contains 61,802 witness--legislator observations from 6,686 House hearings in the 105th through 113th Congresses (1997--2014). It includes 849 legislators and **64 agency codes**. Its 12,704 witness identifiers refer to witness--hearing appearances, not necessarily different people.
+- Agency ideology is observed for 86.3\% of rows. Both independence dimensions cover 98.0\%. Agency reputation covers 96.4\%. These are raw-file coverage rates, not regression sample sizes.
+- The agency crosswalk needs care. Defense headquarters has an ideology score. The Army, Navy, and Air Force lack scores but share the `DD` agency code. Their independence scores also differ. I will retain the authors' coding for replication and document a consistent organizational level for the extension. I will not silently assign headquarters scores to its components.
+- A blank `polappt_type` does not establish career status. The `polappt` variable distinguishes known career officials from unknown cases. The authors also use `dod_pol` to classify Defense witnesses. These distinctions matter for H5.
+- Committee rosters and service dates are the main required addition for the network risk set. Dynamic agency ideal points from @acs2025 offer an optional check for covered regulatory agencies. Those estimates vary by administration, so I will merge at that level after checking agency matches.
+
+Table \@ref(tab:netsizev2) reports the raw network counts using `agencycode`. These networks include observed participants only. Their densities do not yet use the eligible committee roster.
+
+```{r v2-options, include = FALSE}
+# figure style
+knitr::opts_chunk$set(fig.pos = "H")
+pal_v2 <- c("#0072B2", "#D55E00", "#009E73", "#CC79A7",
+            "#E69F00", "#56B4E9", "#000000")
+```
+
+```{r netsizev2, echo = FALSE, results = 'asis'}
+# read the network identifiers
+data_paths_v2 <- c(
+  "bureaucrats_jop/dyad_b.dta",
+  "replication-extension/ban-park-you-2026-jop/bureaucrats_jop/dyad_b.dta"
+)
+data_path_v2 <- data_paths_v2[file.exists(data_paths_v2)][1]
+if (is.na(data_path_v2)) stop("Cannot find bureaucrats_jop/dyad_b.dta.")
+
+dyad_v2 <- haven::read_dta(data_path_v2,
+                         col_select = c(congress, asker, agencycode))
+
+# summarize the raw networks
+netsize_v2 <- dyad_v2 %>%
+  dplyr::group_by(congress) %>%
+  dplyr::summarise(
+    Legislators = dplyr::n_distinct(asker),
+    Agencies = dplyr::n_distinct(agencycode),
+    Ties = dplyr::n_distinct(asker, agencycode),
+    Pairs = dplyr::n(),
+    .groups = "drop"
+  ) %>%
+  dplyr::mutate(Density = Ties / (Legislators * Agencies))
+
+# white table without a floating environment
+knitr::kable(netsize_v2, format = "latex", booktabs = TRUE,
+             longtable = TRUE, digits = 3,
+             caption = "Observed legislator--agency networks by Congress",
+             col.names = c("Congress", "Legislators", "Agencies", "Ties",
+                           "Pairs", "Density"),
+             align = c("c", rep("r", 5))) %>%
+  kableExtra::kable_styling(full_width = FALSE, position = "center",
+                           font_size = 10) %>%
+  kableExtra::row_spec(0:nrow(netsize_v2), background = "white",
+                       color = "black")
+```
+
+*Note*: Ties count distinct legislator--agency pairs within each Congress. Pairs count witness--legislator observations. Density divides ties by the product of observed legislators and agency codes. These descriptive counts precede organizational harmonization and restrictions for missing covariates.
+
+\bigskip
+
+## Model
+
+### Pair-level extension
+
+I extend the pair-level model to test agency alignment and structural independence. The specification includes separate interactions for appointment status and each dimension of independence:
+
+$$
+\begin{aligned}
+Y_{bmh} = {} & \beta_1 O_{mh} + \beta_2 C_{ma}
+             + \beta_3 C_{ma} A_b \\
+            & + \beta_4 O_{mh} S_{1a}
+             + \beta_5 O_{mh} S_{2a} \\
+            & + \beta_6 A_b + \beta_7 O_{mh} A_b
+             + \boldsymbol{\gamma}^{\top}\mathbf{X}_{bmh} \\
+            & + \alpha_a + \alpha_c + \alpha_i + \alpha_p
+             + \varepsilon_{bmh}
+\end{aligned}
+(\#eq:pairv2)
+$$
+
+Where:
+
+- The indices $b$, $m$, and $h$ identify the witness, legislator, and hearing. The indices $a$, $c$, $i$, and $p$ identify the corresponding agency, committee, issue, and president.
+- $Y_{bmh}$ is the mean analytical score for witness $b$'s responses to legislator $m$ in hearing $h$.
+- $O_{mh}=1$ when the legislator belongs to a different party from the President and $O_{mh}=0$ otherwise, following the replication coding.
+- $A_b=1$ identifies a presidential appointee requiring Senate confirmation (PAS). I retain the authors' Defense adjustment. In the full sample, $A_b=0$ does not necessarily identify a career official. The H5 sample includes only identified career officials and PAS appointees.
+- $C_{ma}=R_m I_a$ measures partisan alignment with the agency. Here, $R_m=1$ for Republicans and $R_m=-1$ for Democrats. The agency ideology score $I_a$ is centered at the agency median, with higher values indicating a more conservative agency. Thus, higher $C_{ma}$ indicates greater alignment under this coding. This measure is an alignment gradient rather than an ideological distance on a shared scale. I document the treatment of independent legislators separately.
+- $S_{1a}$ measures *decision-maker independence*. It captures statutory insulation of agency leaders from political control over appointment and removal. Relevant features include restrictions on appointments, staggered terms, and removal protections [@selin2015].
+- $S_{2a}$ measures *policy-decision independence*. It captures insulation of agency decisions from political review. Relevant features include exemptions from Office of Management and Budget (OMB) review and independent litigating authority [@selin2015]. I standardize both independence scores over unique harmonized agencies. Each has a mean of zero and a standard deviation of one. Higher values indicate greater independence.
+- $\beta_1,\ldots,\beta_7$ are regression coefficients. Products such as $C_{ma}A_b$ are interaction terms. They allow the association of one variable with analytical content to vary with another variable.
+- $\mathbf{X}_{bmh}$ contains the original controls and the additional lower-order terms required by the alignment interactions. These terms are legislator party, party $\times$ appointment status, and agency ideology $\times$ appointment status. The vector $\boldsymbol{\gamma}$ contains their coefficients. The transpose symbol $\top$ makes $\boldsymbol{\gamma}^{\top}\mathbf{X}_{bmh}$ the sum of each control multiplied by its coefficient.
+- $\alpha_a$, $\alpha_c$, $\alpha_i$, and $\alpha_p$ are agency, committee, issue, and president fixed effects. They account for average differences across these groups.
+- $\varepsilon_{bmh}$ is the error term for the witness--legislator observation within a hearing.
+
+The two independence dimensions distinguish control over personnel from control over policy decisions. An agency can have protected leaders while its decisions remain subject to external review. Another agency can face fewer review requirements while its leaders remain politically accountable. Combining the scores would obscure this distinction. The model does not mathematically require both dimensions. I retain them separately because H6 concerns insulation of decision makers, while policy-decision independence tests a related institutional channel. I estimate each interaction separately and then include both on a common sample. In the joint model, each interaction is conditional on the other dimension. Agency fixed effects absorb the main effects of agency ideology and both independence scores when these measures are constant within harmonized agencies.
+
+I first estimate H4 and H6 without $C_{ma}A_b$. For H5, I restrict the sample to identified career officials and PAS appointees and estimate the full specification. In that sample, $\beta_2$ is the coefficient on alignment for career officials. The corresponding coefficient for PAS appointees is $\beta_2+\beta_3$. H4 predicts $\beta_2>0$, while H5 predicts $\beta_3<0$.
+
+The coefficient $\beta_4$ measures how the out-partisan association changes with a one-standard-deviation increase in decision-maker independence. H6 predicts $\beta_4>0$ if that association is negative at the reference values. This prediction means that greater independence narrows the disadvantage within the range where the association remains negative. The coefficient $\beta_5$ gives the corresponding change for policy-decision independence. I report this second interaction separately without imposing the same directional prediction.
+
+The remaining coefficients retain the appointment comparison. At mean independence, $\beta_1$ is the out-partisan coefficient for the $A_b=0$ group. The coefficient $\beta_7$ captures its difference for PAS appointees. The coefficient $\beta_6$ is the appointment-status association when all variables interacted with appointment status equal zero. These are conditional coefficients. A change in legislator party also changes agency alignment and other party terms. I therefore plot predicted partisan gaps using consistent values for all party-related variables rather than interpreting $\beta_1$ alone as the full gap.
+
+I retain hearing-clustered standard errors for replication. For the extension, I also assess uncertainty from repeated members and shared agency characteristics. A supplementary specification uses witness--hearing fixed effects to compare responses within the same setting. These replace overlapping fixed effects and absorb appointment status and other variables that are constant within a witness--hearing group. Interactions with member attributes remain estimable when they vary within those groups. Neither specification identifies a causal effect of alignment.
+
+### Network construction
+
+- Legislators form one mode and harmonized agencies form the other. $y_{ma,t}=1$ when member $m$ questions agency $a$ at least once in Congress $t$. The graph is undirected because each tie represents an exchange. A response does not constitute a separate reciprocal tie.
+- The eligible set contains pairs with at least one documented questioning opportunity in covered hearings. I will match committee service dates to agency appearances and check guest participation and joint hearings. Every observed tie must belong to this set. Eligible nonparticipants remain in the network as isolates.
+- A zero means no recorded exchange despite a documented opportunity. Unverified opportunities remain unknown. I will resolve roster discrepancies before imposing structural zeros outside the eligible set. The number of eligible hearings measures exposure.
+- The content weight $w_{ma,t}$ is the mean pair-level analytical score among observed exchanges. I retain the number of observations behind each mean. No exchange means undefined content, not a score of zero. I separate legislative and oversight hearings and test H5 before aggregation.
+
+### Descriptive measures
+
+- **Centrality**: Agency degree counts distinct questioning legislators. I also report degree relative to eligible legislators. Summing edge means gives a weighted-strength measure, not the total volume of information transmitted [@liu2025].
+- **Assortative mixing**: Cross legislator party with agency orientation and compare ties per eligible pair. Compare analytical scores separately among existing ties. The continuous alignment measure provides the main test; a median split is descriptive.
+- **Community detection**: Use a method designed for bipartite networks and compare communities with committee jurisdiction. Projection onto legislators can create apparent clustering simply because several members question the same agency [@lo2026].
+- Ordinary triangles cannot occur in this graph. Four-cycles describe shared agency contacts. I will plot the bipartite graph directly with different node shapes for the two modes.
+
+
+### Inferential models
+
+- *Questioning ties*: Fit a bipartite ERGM within each Congress and hearing type with sufficient coverage [@cranmer2021]:
+
+$$
+\Pr(Y_t=y\mid\mathbf{X}_t,\mathcal{R}_t)
+=\frac{\exp\{\boldsymbol{\theta}_t^{\top}
+g(y,\mathbf{X}_t)\}}
+{\kappa(\boldsymbol{\theta}_t,\mathbf{X}_t,\mathcal{R}_t)}
+(\#eq:accessv2)
+$$
+
+$\mathcal{R}_t$ is the verified opportunity set. The denominator normalizes probabilities over admissible bipartite graphs. Model terms include alignment and its party and agency-ideology components. I also include presidential partisanship, agency independence, and exposure to hearings. Degree terms for each mode represent unequal activity. I will add a bipartite shared-partner term only if diagnostics support it. H7 predicts a positive alignment coefficient.
+
+I will inspect Markov chain Monte Carlo (MCMC) diagnostics and compare simulated networks with observed degree distributions, four-cycles, and mixing patterns. I will also check whether conclusions depend on one agency or Congress. Sparse early coverage limits comparisons across time. Fixed structural zeros require an explicit sample-space restriction, not just an opportunity covariate; the [statnet documentation](https://statnet.org/workshop-advanced-ergm/advanced_ergm_tutorial.html) describes this distinction.
+
+- *Content*: An additive and multiplicative effects (AME) model is an optional extension from the latent-variable portion of the syllabus [@hoff2021]. Row and column effects represent member and agency heterogeneity. Multiplicative effects capture remaining relational dependence. The rectangular member-by-agency matrix requires an appropriate implementation; the documented [`amen::ame()` interface](https://github.com/pdhoff/amen/blob/master/R/ame.R) expects a square matrix. I will verify implementation before committing to this model. Content inference remains conditional on observed exchanges. An access model does not make missing content ignorable or remove unobserved confounding.
+
+### Measurement
+
+- **Analytical information**: Use `ascore` from @ban2026. The underlying measure has a 0--100 scale; values in this file range from 12.96 to 64.61. It measures analytical content rather than truthfulness or policy influence.
+- **Out-partisan**: Reverse `pres_party` following the replication code. That variable records alignment with the President, not the President's party label.
+- **Agency alignment**: Define $C_{ma}=R_m I_a$, where $R_m$ is 1 for Republicans and $-1$ for Democrats. Center the agency ideology score $I_a$ at the agency median. This is a partisan alignment gradient, not a common-scale ideological distance. Code independents explicitly. A binary agency-congruence measure reexpresses Ban's presidential-alignment interaction, so binary recoding alone is not a new test.
+- **Structural independence**: Use `selin_ind1` for decision-maker independence and `selin_ind2` for policy-decision independence [@selin2015]. Standardize over unique harmonized agencies. Leadership structure and legal authority are institutional features, not measures of ideology.
+- **Appointment status**: Reproduce the PAS indicator and Defense adjustment first. Use `polappt==0` to identify known career cases. I should not classify unknown status as career service.
+- **Additional measures**: Agency reputation is a sensitivity control because it may itself reflect political evaluations [@bellodi2023]. For covered agencies, @acs2025 provides an optional distance measure on a scale linked to legislative ideal points. I will check scaling and uncertainty before combining estimates. 
+  - *Legislator race and gender* remain optional descriptive measures, since it can be another standalone analysis/paper.
+  - I can obtain member-level indicators from the [Center for Effective Lawmaking (CEL) House data](https://thelawmakers.org/data-download) [@volden2014]. The file includes `female`, `afam` (African American), and `latino` (Latino/a). 
+  - I will retain the source's coding and select the 105th through 113th Congresses. The current and historical files in [congress-legislators](https://github.com/unitedstates/congress-legislators) link GovTrack identifiers to Bioguide identifiers. 
+  - After verifying that @ban2026's `asker` uses GovTrack identifiers, I will use this crosswalk to merge on Bioguide identifier and Congress. I will check duplicate keys and unmatched members. These indicators do not cover every racial or ethnic group, so zeros do not necessarily identify White legislators. 
+  - I will begin with descriptive comparisons and consider interactions only if theory and group sizes support them.
+
+### Feasibility and limitations
+
+- The main extension uses measures already in the archive. The institutional opportunity set requires an additional roster merge. Until that merge is verified, the raw networks support descriptions of observed questioning but not a fully specified test of H7.
+- Agency ideology is missing in 13.7\% of rows across 12 agency codes, including only part of Defense. I will report exclusions and compare models on common samples. Independence models still lose observations with missing independence or controls.
+- Many exchanges do not create many independent agency observations. Historical changes in structure also limit what static agency measures can explain. I will assess sensitivity to organizational aggregation and influential agencies.
+- Questioning is selective and transcripts have uneven coverage. The project estimates conditional associations. It does not establish that alignment causes information provision or that testimony changes policy. The analysis covers the federal bureaucracy without requiring an agency-specific case study.
+
+\newpage
+
+### Optional extension: Leadership structure and statutory authority
+
+**Research question**: Does the relationship between agency alignment and information sharing vary with leadership structure or statutory authority?
+
+Agency ideology captures an agency's policy orientation. Leadership structure determines who makes decisions and how political principals can influence them. Statutory authority defines the actions an agency can take. I will treat these institutional features as possible moderators of ideological alignment. This distinction follows the separation of agency preferences from structural independence in @richardson2018 and @selin2015.
+
+**Existing data and additional work**:
+
+- The [Administrative Conference of the United States (ACUS) sourcebook dataset](https://www.acus.gov/projects/sourcebook-united-states-executive-agencies-second-edition) is already in my bureaucracy course folder. The local file, `ACUS Sourcebook Data 61219.xlsx`, contains 278 agency and bureau records with 69 columns. It provides a starting point for this extension without constructing every institutional measure from scratch.
+- **Leadership**: `Multimember` identifies commissions, boards, and similar collective bodies. `Party Balancing`, `Fixed Terms`, and `For Cause` record distinct statutory features. I will begin with multimember versus verified single-head leadership. I will inspect the zero category before labeling every remaining organization a single-head agency. A board does not necessarily have partisan balance or removal protection.
+- **Authority**: `Rulemaking` and `Adjudication` record powers under the sourcebook's coding rules. These are separate indicators because an agency can have both. A zero means the relevant authorization was not identified under those rules. It does not establish that the agency has no such power under any law. The workbook has no general enforcement-authority indicator, so I will leave that dimension outside this extension.
+- **Historical coverage**: The codebook reports a statutory update in summer 2017. The spreadsheet is not an annual panel for 1997--2014. I will compare the earlier sourcebook edition and cited statutory provisions before assigning a feature to a hearing year. Where dates cannot be verified, I will leave the value missing or restrict the period. I will not carry 2017 coding backward without evidence.
+
+\bigskip
+
+**Hypothesis and model**:
+
+- **H8 (Collective leadership)**: The negative association between presidential out-partisanship and analytical information is smaller in agencies with multimember leadership than in agencies with a single head.
+
+Collective leadership can make it harder for one presidential appointee to determine the agency's position. That expectation is more plausible where appointment rules sustain competing political perspectives. Multimember leadership alone does not establish insulation. H8 is therefore a test of an institutional association, with party-balancing rules used to assess the proposed explanation where coverage permits.
+
+Let $L_{ah}=1$ identify verified multimember leadership at the time of hearing $h$. For the first test, I add the following terms to the pair-level model:
+
+$$
+\delta_1 L_{ah} + \delta_2 O_{mh}L_{ah}
+$$
+
+H8 predicts $\delta_2>0$ when the baseline out-partisan association is negative. Agency fixed effects absorb $L_{ah}$ when leadership type does not change within an agency. I will estimate this as an alternative specification to the independence interactions because leadership features also contribute to the broader independence measures.
+
+Whether leadership or authority changes the agency-alignment association remains exploratory. If the sample supports it, I will add $C_{ma}L_{ah}$ or an alignment interaction with one authority indicator at a time. Each specification will include the relevant main effects and lower-order interactions. I will compare models on the same observations. These tests supplement H4 rather than replace the network test in H7.
+
+
+**Feasibility decision**:
+
+- I will first match the sourcebook's agency and bureau records to the harmonized @ban2026 agency units. The crosswalk will retain source names and statutory references, along with verified effective dates. Parent-agency names alone cannot identify bureau records. Before estimating an interaction, I will report the number of distinct agencies in each institutional category and their ideological range.
+
+- I will proceed with leadership type only if both categories contain enough comparable agencies and historical coding can be verified without extensive reconstruction. Rulemaking and adjudication will initially remain descriptive. If few agencies support the comparisons or historical coding requires a separate data project, I will retain the main design. The final paper does not depend on completing this optional extension.
+
+\newpage
