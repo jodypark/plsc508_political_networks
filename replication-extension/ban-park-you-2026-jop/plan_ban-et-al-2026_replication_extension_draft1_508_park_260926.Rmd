@@ -2,7 +2,7 @@
 title: |
   \large \textbf{Replication \& Extension} 
 subtitle: |
- PLSC 508: Draft 1 \vspace{0.2cm}
+ PLSC 508: Draft 1 - Research Plan \vspace{0.2cm}
 author: "Jody Park"
 date: "`r Sys.Date()`"
 output:
