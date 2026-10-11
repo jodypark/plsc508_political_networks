@@ -1,0 +1,630 @@
+---
+title: |
+  \large \textbf{PLSC 508: Homework 1} 
+subtitle: |
+ Visualization, Centrality, Transitivity/Reciprocity, \& Community Detection \vspace{0.2cm}
+author: "Jody Park"
+date: "`r Sys.Date()`"
+output:
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+    latex_engine: xelatex
+colorlinks: true
+urlcolor: blue
+linkcolor: blue
+fontsize: 11pt
+bibliography: "references.bib"
+csl: "apanodoi.csl"
+link-citations: true
+reference-section-title: References
+header-includes:
+  - \usepackage[capposition=top]{floatrow}
+  - \usepackage{placeins}   
+  - \usepackage{dcolumn}
+  - \usepackage{booktabs}
+  - \usepackage{siunitx}
+  - \usepackage{amsmath}
+  - \usepackage{enumerate}
+  - \usepackage[shortlabels]{enumitem}
+  - \usepackage[hang,flushmargin]{footmisc}	
+  - \usepackage{makecell}
+  - \usepackage{url}
+  - \usepackage{longtable}
+  - \setlength{\LTleft}{0pt plus 1fill}
+  - \setlength{\LTright}{0pt plus 1fill}
+  - \AtBeginDocument{\setlength{\LTcapwidth}{\textwidth}}
+  - \usepackage{graphicx}
+  - \usepackage{fvextra}
+  - \fvset{breaklines=true,breakanywhere=true}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{xcolor}
+  - \usepackage[most]{tcolorbox}
+  - \newtcolorbox{qbox}{enhanced,breakable,boxrule=0.5pt,arc=2mm,
+    colback=gray!10,colframe=black!50,left=6pt,right=6pt,top=6pt,bottom=6pt}
+  - \usepackage{fontspec}
+  - \usepackage[margin=1in]{geometry}
+  - \usepackage{titling}
+  - \setlength{\droptitle}{-1in}
+  - \usepackage{setspace}
+  - \setstretch{1.2} 
+---
+
+```{r setup, include = FALSE, message=FALSE, results=FALSE, echo = FALSE}
+# R libraries
+# data manipulation
+library(dplyr)
+# network measures and figures
+library(igraph)
+library(ggplot2)
+# other packages are called explicitly with package::function
+# haven, knitr, and kableExtra
+
+# For figures
+knitr::opts_chunk$set(
+                      fig.width = 9, fig.height = 7, fig.retina = 3,
+                      out.width = "100%", fig.align = "center", fig.pos = "H",
+                      cache = FALSE,
+                      echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE,
+                      hiline = TRUE
+                      )
+options(tinytex.verbose = TRUE)
+
+knitr::knit_hooks$set(plot = function (x, options) {
+  float_correct <- function(f, y, opts)  {
+    if (is.null(opts$regfloat) || opts$regfloat==FALSE)
+      paste0(f(y, opts), "\n\n\\FloatBarrier\n")
+    else
+      f(y, opts)
+  }
+  if (!is.null(options$out.width) || !is.null(options$out.height) ||
+      !is.null(options$out.extra) || options$fig.align != "default" ||
+      !is.null(options$fig.subcap)) {
+    if (is.null(options$fig.scap))
+      options$fig.scap = NA
+    return(float_correct(knitr:::hook_plot_tex, x, options))
+  }
+  return(float_correct(knitr:::hook_plot_md_base, x, options))
+})
+
+```
+
+
+# Instruction
+
+\begin{qbox}
+
+Find a network dataset that has been used in a previously published paper, but is not an example dataset from a software package, and has not been used in an in-class tutorial (other than your own, if you have given yours). Apply the following methods, present the results in the form of a figure or table, and interpret what you find.
+
+\begin{enumerate}
+
+\item Visualize the network.
+
+\item Calculate and analyze at least one form of centrality.
+
+\item Calculate and analyze transitivity and/or reciprocity on the network.
+
+\item Perform community detection.
+
+\end{enumerate}
+
+Submit a PDF write-up, as well as the data and code required to reproduce your findings.
+
+\end{qbox}
+
+
+## GitHub Repository
+
+Code and data for reproducing this file are available in my [GitHub repository](https://github.com/jodypark/plsc508_political_networks/tree/main/replication-extension/ban-park-you-2026-jop). The repository README explains how to download the large data files from Harvard Dataverse.
+
+## Data and network construction
+
+```{r hw-data}
+# read the original bureaucratic witness dyads
+hw_data <- haven::read_dta("bureaucrats_jop/dyad_b.dta")
+stopifnot(!anyDuplicated(hw_data$dyad_id),
+          !anyNA(hw_data[c("asker", "agencycode", "congress")]),
+          all(nzchar(hw_data$agencycode)))
+hw_congress <- 113
+
+# reproduce Table 2 appointment and presidential alignment coding
+hw_data <- hw_data %>%
+  mutate(pas = as.numeric(polappt_type == "PAS"),
+         pas = ifelse(agencycode == "DD", NA_real_, pas),
+         pas = ifelse(!is.na(dod_pol), dod_pol, pas),
+         outparty = 1 - pres_party,
+         appointment = case_when(
+           pas == 1 ~ "PAS / Defense political",
+           polappt == 0 | (agencycode == "DD" & dod_pol == 0) ~ "Career / Defense nonpolitical",
+           TRUE ~ "Other / unknown"),
+         party = case_when(party_code == 100 ~ "Democrat",
+                           party_code == 200 ~ "Republican",
+                           TRUE ~ "Other"))
+hw_sample <- hw_data %>% filter(congress == hw_congress)
+
+# a tie records participation; weight counts witness-member-hearing rows
+hw_edges <- hw_sample %>%
+  group_by(asker, agencycode) %>%
+  summarise(weight = n(), .groups = "drop")
+hw_members <- hw_sample %>% distinct(asker, party)
+stopifnot(!anyDuplicated(hw_members$asker))
+hw_members <- hw_members %>% arrange(asker)
+hw_agencies <- sort(unique(hw_sample$agencycode))
+hw_B <- matrix(0, nrow(hw_members), length(hw_agencies),
+               dimnames = list(paste0("M", hw_members$asker), hw_agencies))
+hw_B[cbind(match(hw_edges$asker, hw_members$asker),
+           match(hw_edges$agencycode, hw_agencies))] <- hw_edges$weight
+hw_g <- graph_from_biadjacency_matrix(hw_B, weighted = TRUE)
+hw_binary <- 1L * (hw_B > 0)
+
+# the member projection counts shared agencies, not direct member exchanges
+hw_shared <- tcrossprod(hw_binary)
+diag(hw_shared) <- 0
+hw_project <- graph_from_adjacency_matrix(hw_shared, mode = "undirected",
+                                          weighted = TRUE, diag = FALSE)
+stopifnot(is_bipartite(hw_g), !is_directed(hw_g),
+          ecount(hw_g) == nrow(hw_edges))
+
+# white tables follow the existing draft style
+hw_table <- function(x, caption, digits = 3) {
+  knitr::kable(x, format = "latex", booktabs = TRUE, longtable = TRUE,
+               digits = digits, caption = caption, row.names = FALSE) %>%
+    kableExtra::kable_styling(full_width = FALSE, position = "center",
+                             font_size = 9, latex_options = "repeat_header",
+                             repeat_header_method = "replace") %>%
+    kableExtra::row_spec(0:nrow(x), background = "white", color = "black")
+}
+hw_pal <- c(Democrat = "#0072B2", Republican = "#D55E00",
+            Other = "#999999", Agency = "#009E73")
+```
+
+```{r hw-description, results='asis'}
+# describe the observed network, not an eligible committee roster
+hw_description <- data.frame(
+  Congress = hw_congress, Members = nrow(hw_B), Agencies = ncol(hw_B),
+  Ties = sum(hw_binary), Rows = nrow(hw_sample),
+  Hearings = n_distinct(hw_sample$hearingid),
+  Density = mean(hw_binary))
+hw_table(hw_description, "Observed participation in the 113th Congress")
+```
+
+Table \@ref(tab:hw-description) describes the network I analyze. The data come from @ban2026. Each row in `dyad_b.dta` records a bureaucratic witness and a member who interacted in a House committee hearing. The file contains `r format(nrow(hw_data), big.mark = ",")` rows from `r format(dplyr::n_distinct(hw_data$hearingid), big.mark = ",")` hearings in the 105th through 113th Congresses (1997--2014).
+
+I analyze the 113th Congress (2013--2014), the last Congress in the archive. Membership changes from one Congress to the next. Pooling all years would join members who never served together, so I keep a single Congress as the main network.
+
+The **network** has two modes. Members form one mode and agency codes form the other. A **tie** joins member $m$ and agency $a$ when $m$ questioned a witness from $a$ at least once. The 113th Congress network contains `r nrow(hw_B)` members and `r ncol(hw_B)` agency codes with `r format(sum(hw_binary), big.mark = ",")` ties. The tie weight counts witness--member--hearing rows. It does not count individual questions or the amount of analytical information. I keep the analytical score as a separate variable because contact frequency and content measure different things [@ban2026; @liu2025]. Legislative and oversight hearings both enter the network. Section 2 compares their content.
+
+**Density** equals `r round(mean(hw_binary), 3)`. It is the share of member--agency pairs with a tie among members and agencies that appear in the data. A zero means that the data record no exchange. It does not show that the member had a chance to question that agency. Committee rosters would help define this opportunity set. Without them, I cannot separate an absent tie from an absent opportunity. All results below therefore describe observed participation rather than access. I also retain the source `agencycode`. The `DD` code pools Defense headquarters with the military departments. I assign no agency ideology scores in this assignment.
+
+\newpage
+
+# 1. Network Visualization
+
+## Bipartite structure and shared agency contacts
+
+I visualize the 113th Congress network in three ways. Figures \@ref(fig:hw-layout-fr) and \@ref(fig:hw-layout-bipartite) draw the same graph with two layouts. The force-directed layout pulls together nodes with shared contacts. The two-column layout separates members from agencies and orders members by party and then degree, and agencies by degree. Both figures use the same encodings. Circles are members colored by party, and squares are agencies. Node size increases with degree. In the two-column layout, members share one small size and agency size is capped. Labeled sidebars identify the two party blocks in the dense member column. Edge width increases with the number of witness--member--hearing rows. Figure \@ref(fig:hw-heatmap) removes the edges and plots the incidence matrix directly. Brighter cells mark more frequent contact on a log scale, and dark cells mark no recorded exchange. Layout distances are not ideological distances.
+
+```{r hw-layout-fr, fig.width=9, fig.height=9, fig.cap="Observed legislator--agency exchanges in the 113th Congress: force-directed layout"}
+# shared encodings for both layouts: party color, mode shape, degree size
+set.seed(508)
+hw_xy <- layout_with_fr(hw_g, weights = NA)
+hw_type <- V(hw_g)$type
+hw_colors <- c(unname(hw_pal[hw_members$party]),
+               rep(hw_pal["Agency"], ncol(hw_B)))
+hw_size <- 1.8 + 0.6 * sqrt(degree(hw_g))
+hw_shape <- ifelse(hw_type, "square", "circle")
+hw_edge_width <- 0.2 + log1p(E(hw_g)$weight) / 3
+
+# one-line legend centered below the network
+hw_legend <- function() {
+  legend("bottom", c("Democrat", "Republican", "Agency"),
+         col = hw_pal[c("Democrat", "Republican", "Agency")],
+         pch = c(16, 16, 15), pt.cex = 2, cex = 1.1, horiz = TRUE,
+         bty = "n", inset = c(0, -0.07), xpd = NA)
+}
+
+op <- par(mar = c(3, 1, 1, 1))
+plot(hw_g, layout = hw_xy, vertex.label = NA, vertex.size = hw_size,
+     vertex.color = hw_colors, vertex.frame.color = NA, vertex.shape = hw_shape,
+     edge.color = adjustcolor("gray50", alpha.f = 0.15),
+     edge.width = hw_edge_width)
+hw_legend()
+par(op)
+```
+
+\newpage
+
+Figure \@ref(fig:hw-layout-fr) shows a dense core of large departments. Members of both parties surround this core without a visible partisan split. Contact breadth is uneven. The median member questioned witnesses from `r median(rowSums(hw_binary))` agencies, and the most active member questioned `r max(rowSums(hw_binary))`. Agencies vary more. The median agency faced `r median(colSums(hw_binary))` members. The Department of Defense (`DD`) faced `r max(colSums(hw_binary))`, or `r round(100 * max(colSums(hw_binary)) / nrow(hw_B))`\% of observed members.
+
+Two kinds of nodes sit outside the core. One agency sits apart with a fan of members attached only to it. This agency is the Office of the U.S. Trade Representative (`TN`). Section 2 traces this fan to a single committee. Small commissions and boards sit at the edge with few contacts. `r sum(colSums(hw_binary) <= 4)` agency codes faced four or fewer members. These peripheral agencies reach a narrow audience. These degrees alone do not show whether committee jurisdiction accounts for their narrow audiences.
+
+```{r hw-bipartite-code, eval=FALSE}
+# members: Democrats above Republicans, then by degree; agencies by degree
+hw_order_m <- order(hw_members$party, -rowSums(hw_binary))
+hw_order_a <- order(-colSums(hw_binary))
+hw_y_m <- hw_y_a <- NULL
+hw_y_m[hw_order_m] <- seq(1, -1, length.out = nrow(hw_B))
+hw_y_a[hw_order_a] <- seq(1, -1, length.out = ncol(hw_B))
+hw_two <- cbind(as.numeric(hw_type), c(hw_y_m, hw_y_a))
+
+# party sidebars make the dense member column easy to distinguish
+op <- par(mar = c(3, 1, 2, 1))
+plot(hw_g, layout = hw_two, vertex.label = NA,
+     xlim = c(-1.7, 1.7), ylim = c(-1.05, 1.1), asp = 0,
+     vertex.size = ifelse(hw_type,
+                          pmin(0.5 + 0.1 * sqrt(degree(hw_g)), 2.3), 1.0),
+     vertex.color = hw_colors, vertex.frame.color = NA, vertex.shape = hw_shape,
+     edge.color = adjustcolor("gray50", alpha.f = 0.07),
+     edge.width = hw_edge_width)
+text(c(-1, 1), 1.1, c("Members", "Agencies"), font = 2, cex = 1.2, xpd = NA)
+# label each party block independently of tiny individual nodes
+for (party_name in c("Democrat", "Republican")) {
+  party_y <- hw_y_m[hw_members$party == party_name]
+  segments(-1.10, min(party_y), -1.10, max(party_y),
+           col = hw_pal[party_name], lwd = 6, lend = "butt")
+  text(-1.40, mean(range(party_y)),
+       paste0(party_name, "s\n(n = ", length(party_y), ")"),
+       col = hw_pal[party_name], font = 2, cex = 0.95)
+}
+# match the party sidebars with the observed agency count
+segments(1.10, min(hw_y_a), 1.10, max(hw_y_a),
+         col = hw_pal["Agency"], lwd = 6, lend = "butt")
+text(1.40, mean(range(hw_y_a)),
+     paste0("Agencies\n(n = ", ncol(hw_B), ")"),
+     col = hw_pal["Agency"], font = 2, cex = 0.95)
+hw_legend()
+par(op)
+```
+
+```{r hw-layout-bipartite, ref.label="hw-bipartite-code", eval=TRUE, echo=FALSE, fig.width=9, fig.height=9, fig.cap="Observed legislator--agency exchanges in the 113th Congress: two-column layout ordered by party and degree"}
+```
+
+\clearpage
+
+Figure \@ref(fig:hw-layout-bipartite) preserves the bipartite structure. The blue sidebar identifies Democrats, the orange sidebar identifies Republicans, and the green sidebar identifies agencies. Each sidebar reports the number of observed nodes in its group. The agency column shows the distribution of contacts across these party blocks. The agencies with the highest degree sit at the top, and their edges fan out to both the Democratic block and the Republican block. Edge density thins quickly further down the column. Most agencies draw a few members from a single region of the member column. Individual contacts are hard to trace because edges cross often. The figure shows how unequal agency degree is rather than who questioned whom.
+
+```{r hw-heatmap, fig.width=9, fig.height=6.5, fig.cap="Member-by-agency incidence: members ordered by party and degree; agencies ordered by degree"}
+# show contact counts with a labeled log-scale color key
+hw_heat <- expand.grid(Member = seq_len(nrow(hw_B)),
+                       Agency = seq_len(ncol(hw_B)))
+hw_heat$Rows <- as.vector(hw_B[hw_order_m, hw_order_a])
+ggplot(hw_heat, aes(Member, Agency, fill = Rows)) +
+  geom_raster() +
+  geom_vline(xintercept = sum(hw_members$party == "Democrat") + 0.5,
+             color = "white", linetype = "dashed", linewidth = 0.3) +
+  scale_fill_viridis_c(trans = "log1p", breaks = c(0, 1, 5, 20, 100),
+                       name = "Dyad rows (log scale)") +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  labs(x = "Members (Democrats, then Republicans)",
+       y = "Agencies (decreasing degree)") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom", panel.grid = element_blank()) +
+  guides(fill = guide_colorbar(title.position = "top", title.hjust = 0.5,
+                               barwidth = grid::unit(9, "cm")))
+```
+
+Figure \@ref(fig:hw-heatmap) shows every member--agency pair without edge crossings. Bright cells cluster in the bottom rows, which hold the agencies with the highest degree. These agencies draw members on both sides of the dashed party line. Rows above them are sparse. Most agencies reach a small set of members. Within each party, members on the left of the block contact many agencies and members on the right contact few. The breadth of contact varies more within parties than between them.
+
+These patterns describe observed participation in a shared venue. In @ban2026, hearings are the setting in which bureaucrats share information with members. The figures show which agencies reach many members in that setting. They do not show that members communicate with each other. Two members tied to the same agency belong to its observed audience. They need not have attended the same hearing or questioned the same witness.
+
+\newpage
+
+# 2. Centrality
+
+## Contact breadth, repeated participation, and network position
+
+I calculate four measures on the bipartite graph. Degree $k_i$ counts the distinct partners of node $i$. Degree share divides degree by the size of the opposite mode:
+$$
+\text{Degree share}_i = \frac{k_i}{n_{\text{opposite}}}
+$$
+The denominator counts observed nodes only. It is not a share of eligible partners. Strength sums the tie weights of node $i$, so it counts repeated witness--member--hearing rows. Eigenvector centrality gives a node a high score when its partners also have high scores. Betweenness measures how often node $i$ lies on shortest paths between other nodes:
+$$
+B_i = \frac{2}{(n-1)(n-2)} \sum_{s<t,\; s,t \neq i} \frac{\sigma_{st}(i)}{\sigma_{st}}
+$$
+Here $\sigma_{st}$ is the number of shortest paths between nodes $s$ and $t$. The term $\sigma_{st}(i)$ counts those that pass through $i$. The first fraction rescales the sum by the number of node pairs. I compute eigenvector centrality and betweenness on the binary graph. Degree and eigenvector centrality are radial measures because they count walks that start or end at a node. Betweenness is medial because it counts paths that pass through a node [@borgatti2006]. None of these measures shows that information actually traveled along a path. I then compare members by party and turn from contact to the content of each exchange.
+
+```{r hw-centrality}
+# binary paths describe contact structure; frequency is a separate strength
+hw_central <- data.frame(
+  Node = V(hw_g)$name,
+  Mode = ifelse(hw_type, "Agency", "Member"),
+  Degree = degree(hw_g),
+  DegreeShare = degree(hw_g) / ifelse(hw_type, nrow(hw_B), ncol(hw_B)),
+  Strength = strength(hw_g),
+  Eigenvector = eigen_centrality(hw_g, weights = NA)$vector,
+  Betweenness = betweenness(hw_g, weights = NA, normalized = TRUE))
+hw_central$Party <- c(hw_members$party, rep("Agency", ncol(hw_B)))
+
+# top nodes within each mode; do not rank the two modes together
+hw_top <- hw_central %>% group_by(Mode) %>%
+  arrange(desc(Degree), Node, .by_group = TRUE) %>% slice_head(n = 5) %>%
+  ungroup() %>% select(-Party)
+hw_rank_cor <- cor(hw_central$Degree[hw_type],
+                   hw_central$Betweenness[hw_type], method = "spearman")
+
+# members whose only observed agency contact is the trade representative
+hw_tn_members <- hw_members$asker[hw_binary[, "TN"] == 1 & rowSums(hw_binary) == 1]
+hw_tn_only <- length(hw_tn_members)
+hw_tn_wm <- n_distinct(hw_sample$asker[hw_sample$asker %in% hw_tn_members &
+                         hw_sample$committee_name == "Committee on Ways and Means"])
+hw_tn_dem <- sum(hw_members$party[hw_members$asker %in% hw_tn_members] == "Democrat")
+
+# committee service of the three members with the broadest contact
+hw_broad <- hw_members$asker[order(-rowSums(hw_binary))][1:3]
+hw_broad_ogr <- n_distinct(hw_sample$asker[hw_sample$asker %in% hw_broad &
+  hw_sample$committee_name == "Committee on Oversight and Government Reform"])
+```
+
+```{r hw-central-table, results='asis'}
+# report four measures, with the opposite-mode degree denominator
+hw_table(hw_top, "Top five nodes per mode by degree; binary path measures")
+```
+
+Table \@ref(tab:hw-central-table) lists the five nodes with the highest degree in each mode. I rank members and agencies separately because their denominators differ. `DD` leads on every agency measure. It reached `r round(100 * hw_top$DegreeShare[1])`\% of observed members and accounts for `r format(hw_top$Strength[1], big.mark = ",")` rows. The next four agencies are also cabinet departments. Strength reorders them. The State Department (`ST`) ranks fourth in degree but second in strength. Its strength records more witness--member--hearing rows despite its lower degree.
+
+The member rows show a different kind of outlier. The most active member reached `r round(100 * max(hw_central$DegreeShare[!hw_type]))`\% of agency codes. All `r hw_broad_ogr` of the three broadest members questioned witnesses on the Committee on Oversight and Government Reform. That committee can investigate any agency. Its members therefore meet witnesses from across the executive branch. This pattern is consistent with broad committee jurisdiction; the measures do not separate jurisdiction from individual effort. Member betweenness stays small. Every path between members passes through at least one agency.
+
+```{r hw-central-figure, fig.width=9, fig.height=6.5, fig.cap="Agency contact breadth and binary betweenness in the bipartite graph"}
+# label the five agencies with the most member contacts and the trade outlier
+hw_agency_central <- hw_central %>% filter(Mode == "Agency")
+ggplot(hw_agency_central, aes(DegreeShare, Betweenness)) +
+  geom_point(aes(size = Strength), color = hw_pal["Agency"], alpha = 0.7) +
+  geom_text(data = hw_agency_central %>% filter(rank(-Degree) <= 5 | Node == "TN"),
+            aes(label = Node), nudge_y = 0.002, size = 4) +
+  scale_size_continuous(range = c(2, 9)) +
+  labs(x = "Share of observed members contacted", y = "Normalized betweenness",
+       size = "Dyad rows") +
+  theme_minimal(base_size = 12) +
+  theme(legend.position = "bottom", panel.grid.minor = element_blank()) +
+  guides(size = guide_legend(nrow = 1))
+```
+
+Figure \@ref(fig:hw-central-figure) compares agency degree share with betweenness.\footnote{TN: Office of the U.S. Trade Representative; HS: Department of Homeland Security; ST: Department of State; TR: Department of the Treasury; HE: Department of Health and Human Services; DD: Department of Defense, including the military departments.} The two measures move together. Their Spearman rank correlation is `r round(hw_rank_cor, 3)`. Agencies that reach many members also connect many otherwise distant members. `TN` is the clear exception. It ranks `r rank(-hw_agency_central$Betweenness)[hw_agency_central$Node == "TN"]`th in betweenness with only `r hw_agency_central$Degree[hw_agency_central$Node == "TN"]` member contacts. Of these members, `r hw_tn_only` questioned no other agency. All `r hw_tn_wm` of them questioned witnesses on the Committee on Ways and Means, which holds jurisdiction over trade. The group is bipartisan, with `r hw_tn_dem` Democrats and `r hw_tn_only - hw_tn_dem` Republicans. Every shortest path from them to the rest of the graph passes through `TN`. Its medial position reflects a separate committee audience rather than broad contact.
+
+```{r hw-party-centrality, results='asis'}
+# compare members only, avoiding different denominators across modes
+hw_party_central <- hw_central %>% filter(Mode == "Member") %>%
+  group_by(Party) %>% summarise(N = n(), Degree = mean(Degree),
+    Strength = mean(Strength), Eigenvector = mean(Eigenvector),
+    Betweenness = mean(Betweenness), .groups = "drop")
+hw_table(hw_party_central, "Mean member centrality by party")
+```
+
+Table \@ref(tab:hw-party-centrality) compares members by party. Republicans have a higher mean degree than Democrats (`r round(hw_party_central$Degree[hw_party_central$Party == "Republican"], 2)` versus `r round(hw_party_central$Degree[hw_party_central$Party == "Democrat"], 2)`). Their mean strength is also higher. The differences are small. They describe observed participation rather than a party effect. Majority status and committee jurisdiction could produce the same gap. Republicans held the House majority in the 113th Congress.\footnote{U.S. House of Representatives, \href{https://history.house.gov/Congressional-Overview/Profiles/113th/}{113th Congress profile}.}
+
+```{r hw-content-groups, results='asis'}
+# appointment is an exchange attribute, not a fixed agency attribute
+hw_content <- hw_sample %>%
+  mutate(Hearing = ifelse(oversight == 1, "Oversight", "Legislative"),
+         Alignment = ifelse(outparty == 1, "Out-partisan", "Co-partisan")) %>%
+  group_by(Hearing, appointment, Alignment) %>%
+  summarise(Rows = n(), Members = n_distinct(asker),
+            Agencies = n_distinct(agencycode),
+            Score = mean(ascore, na.rm = TRUE), .groups = "drop")
+hw_table(hw_content, "Analytical content by hearing, appointment, and presidential alignment",
+         digits = 2)
+
+# co-partisan minus out-partisan mean within each hearing and appointment group
+hw_gap <- hw_content %>% group_by(Hearing, appointment) %>%
+  summarise(Gap = Score[Alignment == "Co-partisan"] -
+              Score[Alignment == "Out-partisan"], .groups = "drop")
+```
+
+Table \@ref(tab:hw-content-groups) turns from contact to content. `Score` averages the exchange-level analytical scores from @ban2026 on their 0--100 scale. Each exchange-level score summarizes the analytical content of a witness's testimony to a member in a hearing. `Alignment` records whether the member shares the President's party. Appointment status describes the witness in each row. It is not a fixed agency attribute, so one agency can appear in several groups. I follow the PAS coding and Defense adjustment in @ban2026. Unlike their binary regression indicator, this descriptive table separates other or unknown appointment types from identified career officials. PAS denotes presidential appointees confirmed by the Senate. The table covers `r format(sum(hw_content$Rows), big.mark = ",")` rows. Group means range from `r paste(round(range(hw_content$Score), 2), collapse = " to ")`.
+
+Out-partisans of the President receive lower mean scores in every hearing-by-appointment group. The gap ranges from `r sprintf("%.2f", min(hw_gap$Gap))` to `r sprintf("%.2f", max(hw_gap$Gap))` points. It is larger for PAS appointees than for career officials in both hearing types. In oversight hearings the PAS gap is `r sprintf("%.2f", hw_gap$Gap[hw_gap$Hearing == "Oversight" & hw_gap$appointment == "PAS / Defense political"])` points and the career gap is `r sprintf("%.2f", hw_gap$Gap[hw_gap$Hearing == "Oversight" & hw_gap$appointment == "Career / Defense nonpolitical"])`. These raw means agree in direction with @ban2026. They do not reproduce the published estimates, which include fixed effects and controls.
+
+Centrality and content answer different questions. Centrality describes who reaches whom. It does not describe what passes through a tie [@liu2025]. `DD` has the broadest audience in the network. Its breadth says nothing about how much analysis its witnesses provide.
+
+\newpage
+
+# 3. Transitivity \& Reciprocity
+
+## Projection closure and bipartite four-cycles
+
+Reciprocity is not defined for this network. Reciprocity asks whether a tie from $i$ to $j$ is matched by a tie from $j$ to $i$. That question requires directed ties. Each tie here records a joint exchange in a hearing. I could direct each tie from the questioning member to the agency. Every reverse tie would then be zero by construction. I could instead add each witness answer as a reverse tie. Every tie would then be reciprocated by construction. Neither choice tests reciprocity, so I analyze transitivity.
+
+Ordinary triangle transitivity is uninformative in the bipartite graph. Members connect only to agencies. A triangle would need a tie between two members or between two agencies. The bipartite graph therefore contains no triangles. This zero follows from the structure of the graph; it is not evidence of weak cohesion [@cranmer2021; @lo2026]. Therefore, I use two alternatives. The first projects the network onto members, so two members share a tie when they questioned a common agency. The second counts four-cycles in the bipartite graph itself.
+
+Global transitivity in the member projection is the share of connected triples that close into triangles:
+$$
+C = \frac{3 \times \text{number of triangles}}{\text{number of connected triples}}
+$$
+Mean local clustering averages closure across members:
+$$
+\bar{C} = \frac{1}{n} \sum_{i=1}^{n} \frac{t_i}{k_i(k_i-1)/2}
+$$
+Here $t_i$ counts the triangles that include member $i$ and $k_i$ is the projected degree. Members with $k_i<2$ receive zero. The global measure weights members by their number of triples. The local mean weights every member equally [@tamcho2010]. A four-cycle joins two members through two shared agencies. Let $s_{ij}$ be the number of agencies that members $i$ and $j$ both questioned. The count is
+$$
+F = \sum_{i<j} \binom{s_{ij}}{2}
+$$
+It is a count rather than a proportion. I compare all three statistics with a random reference and then repeat them for each Congress.
+
+\newpage
+
+```{r hw-closure}
+# calculate three nontrivial closure summaries from the incidence matrix
+hw_closure <- function(B) {
+  shared <- tcrossprod(B)
+  common <- shared[upper.tri(shared)]
+  diag(shared) <- 0
+  g <- graph_from_adjacency_matrix(1L * (shared > 0),
+                                   mode = "undirected", diag = FALSE)
+  c(Global = transitivity(g, type = "global", isolates = "zero"),
+    MeanLocal = transitivity(g, type = "average", isolates = "zero"),
+    FourCycles = sum(common * (common - 1) / 2))
+}
+hw_observed <- hw_closure(hw_binary)
+hw_bipartite_triangles <- sum(count_triangles(hw_g)) / 3
+stopifnot(hw_bipartite_triangles == 0)
+
+# randomize agency choices, retaining every member's observed degree
+# this reference does not preserve agency degree or committee opportunities
+set.seed(508)
+hw_draws <- 99
+hw_null <- replicate(hw_draws, {
+  B <- matrix(0L, nrow(hw_binary), ncol(hw_binary))
+  for (i in seq_len(nrow(B))) {
+    B[i, sample.int(ncol(B), rowSums(hw_binary)[i])] <- 1L
+  }
+  hw_closure(B)
+})
+hw_closure_table <- data.frame(
+  Measure = names(hw_observed), Observed = unname(hw_observed),
+  NullMean = rowMeans(hw_null),
+  NullLow = apply(hw_null, 1, quantile, probs = 0.025),
+  NullHigh = apply(hw_null, 1, quantile, probs = 0.975))
+```
+
+```{r hw-closure-table, results='asis'}
+# compare all three statistics against the same bipartite reference
+# four-cycles are counts, so they print as integers
+hw_table(hw_closure_table %>%
+           mutate(across(-Measure, ~ ifelse(Measure == "FourCycles",
+                                             format(round(.x), big.mark = ","),
+                                             sprintf("%.3f", .x)))),
+         "Closure versus 99 row-degree-preserving random incidence matrices")
+```
+
+Table \@ref(tab:hw-closure-table) reports the observed values next to the reference. `Observed` is the value in the 113th Congress network. `NullMean` is the mean across random draws, and `NullLow` and `NullHigh` bound the middle 95\% of draws. Global transitivity is `r sprintf("%.3f", hw_observed[1])` and mean local clustering is `r sprintf("%.3f", hw_observed[2])`. Both values are high. Much of this closure follows from the projection. An agency questioned by three members creates a triangle among them. `DD` alone joins `r max(colSums(hw_binary))` members into one clique [@lo2026]. The projection has a density of `r round(edge_density(hw_project), 3)`. The bipartite graph contains `r format(hw_observed[3], scientific = FALSE, big.mark = ",")` four-cycles.
+
+Each of the `r hw_draws` random draws keeps every member's observed degree and assigns agencies at random. The reference keeps both mode sizes. It does not keep agency degree or committee opportunities, and some agencies can receive no members in a draw. The reference means are `r sprintf("%.3f", hw_closure_table$NullMean[1])` for global transitivity and `r sprintf("%.3f", hw_closure_table$NullMean[2])` for mean local clustering. The mean four-cycle count is `r format(round(hw_closure_table$NullMean[3]), big.mark = ",")`. All three observed values exceed the 97.5th percentile of their reference distributions. Members share agencies more often than random choice predicts. The four-cycle gap is the most informative of the three. Projection inflates both triangle measures in the observed and the random networks alike. Four-cycles instead count repeated overlap, where two members share more than one agency.
+
+The comparison does not explain why. Agency popularity is one candidate. A few departments draw many members, and shared audiences follow. Committee jurisdiction is another, since members of one committee question the same agencies. The Ways and Means members who questioned only `TN` illustrate this mechanism. The reference removes both features. It is an illustrative benchmark rather than a test conditioned on committee rosters. It also says nothing about whether ideology produces closure.
+
+```{r hw-closure-congress, results='asis'}
+# changing coverage means this is a descriptive comparison across Congresses
+hw_by_congress <- bind_rows(lapply(sort(unique(hw_data$congress)), function(t) {
+  d <- hw_data %>% filter(congress == t) %>% distinct(asker, agencycode)
+  B <- 1L * (table(d$asker, d$agencycode) > 0)
+  z <- hw_closure(B)
+  data.frame(Congress = t, Members = nrow(B), Agencies = ncol(B),
+             Global = z[1], MeanLocal = z[2], FourCycles = z[3])
+}))
+hw_table(hw_by_congress, "Closure in observed networks across Congresses")
+```
+
+Table \@ref(tab:hw-closure-congress) repeats the observed calculation for each Congress. Global transitivity rises from `r sprintf("%.3f", hw_by_congress$Global[1])` in the 105th Congress to `r sprintf("%.3f", max(hw_by_congress$Global))` in the `r hw_by_congress$Congress[which.max(hw_by_congress$Global)]`th. The observed network grows from `r hw_by_congress$Members[1]` to `r hw_by_congress$Members[which.max(hw_by_congress$Global)]` members over the same period. Changes in transcript coverage can alter measured closure, but larger networks do not necessarily have higher transitivity. Transcript coverage and membership change across these years. I therefore treat the trend as descriptive.
+
+For @ban2026, hearings matter because several members hear the same bureaucrats at once. High closure means that these audiences overlap. Members who share agencies may question different witnesses in different hearings. Four-cycles establish repeated overlap in agency contacts, not repeated exposure to the same witnesses. That overlap does not show that they cooperate.
+
+\newpage
+
+# 4. Community Detection
+
+## Two algorithms on the weighted member projection
+
+I detect communities in the weighted member projection. The edge weight counts the agencies that two members share. I use two algorithms. Louvain searches for a partition with high weighted modularity. Walktrap merges members whose short random walks of four steps end in similar places [@yang2016]. Modularity compares the weight inside communities with the weight expected from member strengths:
+$$
+Q = \frac{1}{2W} \sum_{i,j} \left[ w_{ij} - \frac{s_i s_j}{2W} \right] \delta(c_i, c_j)
+$$
+Here $w_{ij}$ is the shared-agency weight between members $i$ and $j$. The strength $s_i$ sums the weights of member $i$, and $W$ is the total edge weight. The indicator $\delta(c_i, c_j)$ equals one when the two members belong to the same community. I compare the two partitions with the adjusted Rand index. The index equals one for identical partitions and zero for agreement expected by chance. I then compare the Louvain partition with party and with each member's modal committee.
+
+```{r hw-communities}
+# use shared-agency counts as similarities for both algorithms
+set.seed(508)
+hw_louvain <- cluster_louvain(hw_project, weights = E(hw_project)$weight)
+hw_walktrap <- cluster_walktrap(hw_project, weights = E(hw_project)$weight,
+                                steps = 4)
+hw_communities <- list(Louvain = hw_louvain, Walktrap = hw_walktrap)
+hw_modularity <- data.frame(
+  Algorithm = names(hw_communities),
+  Groups = sapply(hw_communities, function(x) length(unique(membership(x)))),
+  Modularity = sapply(hw_communities, function(x)
+    modularity(hw_project, membership(x), weights = E(hw_project)$weight)))
+hw_agreement <- compare(hw_louvain, hw_walktrap, method = "adjusted.rand")
+
+# compare the same partition with party and modal observed committee
+hw_modal_committee <- hw_sample %>% count(asker, committee_name) %>%
+  arrange(asker, desc(n), committee_name) %>% group_by(asker) %>%
+  slice_head(n = 1) %>% ungroup()
+hw_member_groups <- hw_members %>%
+  mutate(Community = as.integer(membership(hw_louvain)),
+         Committee = hw_modal_committee$committee_name[
+           match(asker, hw_modal_committee$asker)])
+hw_party_ari <- compare(hw_member_groups$Community,
+                        as.integer(factor(hw_member_groups$party)),
+                        method = "adjusted.rand")
+hw_committee_ari <- compare(hw_member_groups$Community,
+                            as.integer(factor(hw_member_groups$Committee)),
+                            method = "adjusted.rand")
+hw_composition <- hw_member_groups %>% group_by(Community) %>%
+  summarise(Members = n(), Democrats = sum(party == "Democrat"),
+            Republicans = sum(party == "Republican"),
+            TopCommittee = names(which.max(table(Committee))),
+            .groups = "drop") %>%
+  mutate(TopCommittee = sub("^Committee on (the )?", "", TopCommittee))
+
+# identify each community's most frequently contacted agency code
+hw_agency_groups <- hw_edges %>%
+  left_join(hw_member_groups %>% select(asker, Community), by = "asker") %>%
+  group_by(Community, agencycode) %>% summarise(Contacts = n(), .groups = "drop") %>%
+  arrange(Community, desc(Contacts), agencycode) %>% group_by(Community) %>%
+  slice_head(n = 1) %>% ungroup() %>%
+  rename(TopAgency = agencycode)
+hw_composition <- left_join(hw_composition, hw_agency_groups, by = "Community")
+```
+
+```{r hw-modularity-table, results='asis'}
+# compare modularity on the identical weighted graph
+hw_table(hw_modularity, "Community detection on shared agency contacts")
+```
+
+Table \@ref(tab:hw-modularity-table) reports the results. Louvain finds `r hw_modularity$Groups[1]` communities with $Q=`r round(hw_modularity$Modularity[1], 3)`$. Walktrap finds `r hw_modularity$Groups[2]` with $Q=`r round(hw_modularity$Modularity[2], 3)`$. Both values are modest. The projection is dense, so most members share an agency with most other members. The partitions also disagree. Their adjusted Rand index is `r round(hw_agreement, 3)`. I use Louvain as the main partition. Its higher modularity does not make it the true partition.
+
+```{r hw-community-figure, fig.width=9, fig.height=8.5, fig.cap="Louvain communities among members connected through shared agencies"}
+# Okabe-Ito colors separate communities; shape carries party
+set.seed(508)
+hw_project_xy <- layout_with_fr(hw_project, weights = E(hw_project)$weight)
+hw_group_colors <- c("#E69F00", "#0072B2", "#009E73", "#CC79A7",
+                     "#000000", "#56B4E9", "#D55E00")[
+                       seq_len(max(hw_member_groups$Community))]
+op <- par(mar = c(3, 1, 1, 1))
+plot(hw_project, layout = hw_project_xy, vertex.label = NA,
+     vertex.size = 3 + sqrt(rowSums(hw_binary)) / 2,
+     vertex.color = hw_group_colors[hw_member_groups$Community],
+     vertex.frame.color = NA,
+     vertex.shape = ifelse(hw_members$party == "Democrat", "circle", "square"),
+     edge.color = adjustcolor("gray50", alpha.f = 0.04),
+     edge.width = 0.15 + log1p(E(hw_project)$weight) / 5)
+legend("topleft", paste("Community", seq_along(hw_group_colors)),
+       col = hw_group_colors, pch = 16, pt.cex = 2.2, cex = 1.1, bty = "n")
+legend("bottom", c("Democrat", "Republican"), pch = c(16, 15),
+       col = "gray30", pt.cex = 2.2, cex = 1.1, horiz = TRUE,
+       bty = "n", inset = c(0, -0.07), xpd = NA)
+par(op)
+```
+
+Figure \@ref(fig:hw-community-figure) shows the `r nrow(hw_composition)` Louvain communities. Color marks the community and shape marks the party. Node size increases with the number of agencies a member questioned, and edge width increases with the number of shared agencies. The communities occupy different regions of the layout but overlap at the center. Circles and squares mix within every color, so party does not separate the groups visually. The `TN` audience appears as a separate cluster on the right. Louvain places it in the community led by `DD`. This partition places the small, tight cluster within a larger group; it does not by itself establish why the algorithm grouped them together.
+
+```{r hw-community-composition, results='asis'}
+# counts reveal whether algorithmic groups simply reproduce party
+hw_table(hw_composition %>% rename(Agency = TopAgency, Committee = TopCommittee),
+         "Louvain community composition, leading agency, and modal committee", 0)
+```
+
+Table \@ref(tab:hw-community-composition) describes each community. `Agency` is the agency code contacted by the largest number of distinct members in the community. `Contacts` reports that number, not the number of exchanges. `Committee` is the most common modal committee among community members. Party does not organize the partition. Every community contains Democrats and Republicans in similar proportions. The adjusted Rand index with party is $`r round(hw_party_ari, 3)`$. Agencies and committees track the partition more closely. Each community has a different leading agency, and all five are cabinet departments. The adjusted Rand index with each member's modal observed committee is `r round(hw_committee_ari, 3)`. The modal committee is the committee in which a member appears most often in these data. I break ties alphabetically. It is not the member's full committee assignment. The agreement is higher than for party but still limited. The most common modal committee usually fits the leading agency. `r hw_composition$TopCommittee[hw_composition$TopAgency == "DD"]` leads the `DD` community and `r hw_composition$TopCommittee[hw_composition$TopAgency == "TR"]` leads the `TR` community.
+
+These communities partition members into nonoverlapping groups whose agency audiences can overlap. They are not legislative alliances or groups of witnesses [@ban2026; @leifeld2012]. Both algorithms use a projection and ordinary modularity. Neither estimates communities in the bipartite graph itself. Projection can exaggerate community structure because each shared agency creates a clique [@lo2026]. The low agreement between algorithms also limits claims about a unique partition.
+
+\newpage
+
+# 5. Conclusion
+
+The 113th Congress hearing network shows stronger descriptive alignment with committees than with party. The visualizations show a core of cabinet departments that members of both parties question. Centrality confirms this core. `DD` reached `r round(100 * hw_top$DegreeShare[1])`\% of observed members, while `TN` gained high betweenness through a separate Ways and Means audience. Party differences in member centrality are small, but co-partisans of the President receive more analytical content in every group. Transitivity in the member projection is high and exceeds a random reference, although projection inflates it. Communities have modest modularity ($Q=`r round(hw_modularity$Modularity[1], 3)`$) and follow committees and leading agencies more than party.
+
+These results help me shape the extension paper. Access and content should be modeled separately. The partisan gap in @ban2026 appears in content, but observed participation is bipartisan and communities align more closely with committees than with party. Committee rosters would define which member--agency pairs could form, so absent ties would carry meaning. Models that work on the bipartite graph directly would avoid the closure and community inflation that projection creates [@lo2026]. An interaction between member party and agency ideology could then measure alignment for each member--agency pair to test whether it is associated with analytical content.
+
+\newpage
+
