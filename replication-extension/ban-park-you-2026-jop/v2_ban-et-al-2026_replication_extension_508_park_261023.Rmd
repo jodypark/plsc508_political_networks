@@ -1,0 +1,1160 @@
+---
+title: |
+  \titlestretch\textsc{Agency Alignment in Congress}\titlebreak
+  \titlesub{Questioning Networks and Interbranch Information Sharing}\thanks{PLSC 508 Political Networks: Replication \& Extension Paper Working draft version 2, October 24, 2026.}
+author: 'Jody Park\thanks{Department of Political Science, Pennsylvania State University. \texttt{jodypark@psu.edu}}'
+bibliography: references.bib
+csl: apanodoi.csl
+link-citations: true
+fontsize: 12pt
+geometry: margin=1in
+papersize: letter
+output:
+  bookdown::pdf_document2:
+    latex_engine: pdflatex
+    number_sections: false
+    toc: false
+    fig_caption: true
+    keep_tex: false
+header-includes:
+  - \usepackage{setspace}
+  - \setstretch{1.65}
+  - \newcommand{\titlestretch}{\setstretch{1.15}}
+  - \newcommand{\titlesub}[1]{{\Large\textsc{#1}}}
+  - \makeatletter
+  - \renewcommand{\@maketitle}{\newpage\null\vskip 2em\begin{center}{\LARGE\setstretch{1.15}\@title\par}\vskip 1.2em{\large\setstretch{1}\@author\par}\end{center}\par\vskip 1.5em}
+  - \makeatother
+  - \newcommand{\titlebreak}{\\[0.3em]}
+  - \newcommand{\abstractstretch}{\setstretch{1.15}\noindent}
+  - \usepackage{titlesec}
+  - \titleformat{\section}{\normalfont\Large\bfseries}{}{0pt}{}
+  - \titlespacing*{\section}{0pt}{2.5ex plus .5ex minus .2ex}{1.2ex plus .2ex}
+  - \titleformat{\subsection}{\normalfont\large\bfseries}{}{0pt}{}
+  - \titlespacing*{\subsection}{0pt}{2ex plus .5ex minus .2ex}{1ex plus .2ex}
+  - \titleformat{\subsubsection}{\normalfont\normalsize\bfseries}{}{0pt}{}
+  - \titleformat{\paragraph}[runin]{\normalfont\normalsize\bfseries}{}{0pt}{}[.]
+  - \usepackage{caption}
+  - \captionsetup{font=normalsize,labelfont=bf,textfont=bf,labelsep=colon,justification=centering,skip=6pt}
+  - \usepackage{indentfirst}
+  - \setlength{\parindent}{1.5em}
+  - \usepackage{placeins}
+  - \usepackage{dcolumn}
+  - \usepackage{booktabs}
+  - \usepackage{siunitx}
+  - \usepackage{amsmath}
+  - \usepackage{makecell}
+  - \usepackage{url}
+  - \usepackage{longtable}
+  - \setlength{\LTleft}{0pt plus 1fill}
+  - \setlength{\LTright}{0pt plus 1fill}
+  - \usepackage{graphicx}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \floatstyle{plaintop}
+  - \restylefloat{figure}
+  - '\let\origtable\table'
+  - '\let\endorigtable\endtable'
+  - '\renewenvironment{table}[1][]{\origtable[H]}{\endorigtable}'
+  - '\DeclareUrlCommand\fname{\def\UrlFont{\footnotesize\ttfamily}}'
+  - \usepackage{etoolbox}
+  - '\AtBeginEnvironment{tabular}{\setstretch{1}\renewcommand{\arraystretch}{0.9}}'
+  - '\AtBeginEnvironment{tablenotes}{\setstretch{1}}'
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{rotating}
+  - \usepackage{afterpage}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{xcolor}
+  - \raggedbottom
+  - \setlength{\abovedisplayskip}{4pt}
+  - \setlength{\belowdisplayskip}{4pt}
+  - '\newcommand{\fignote}[1]{\par\vspace{3pt}\begin{minipage}{\linewidth}\setstretch{1}\footnotesize\textit{Notes:} #1\end{minipage}}'
+  - \usepackage[most]{tcolorbox}
+  - \newtcolorbox{qbox}{enhanced,breakable,boxrule=0.5pt,arc=2mm,colback=gray!10,colframe=black!50,left=6pt,right=6pt,top=6pt,bottom=6pt}
+---
+
+```{r setup, include=FALSE}
+# v2: 2nd version of the draft
+# purpose: shared presentation settings and analysis parameters
+# inputs: local project files only; outputs: pal_v2, focal_congress, ergm_congresses, table_v2
+# label/caption: none; placement: shared main/appendix setup
+library(dplyr)
+library(ggplot2)
+library(igraph)
+library(patchwork)
+library(conflicted)
+conflicted::conflicts_prefer(dplyr::filter, dplyr::lag, dplyr::union, dplyr::intersect, dplyr::setdiff, dplyr::as_data_frame, dplyr::groups)
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE,
+  fig.pos = "H", fig.topcaption = TRUE, fig.width = 7, fig.height = 6,
+  out.width = "100%", cache = FALSE)
+pal_v2 <- c("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#000000")
+ggplot2::theme_set(ggplot2::theme_bw(base_size = 10))
+focal_congress <- 113L
+analysis_seed <- 508L
+ergm_congresses <- 105:113
+ergm_focal <- 113L
+# literature memo: same specification per congress, focal 113; opportunity audit gates fits
+table_v2 <- function(x, caption, digits = 3, label = NULL) {
+  names(x) <- gsub("([a-z])([A-Z])", "\\1 \\2", names(x))
+  names(x)[names(x) == "congress"] <- "Congress"
+  tab <- knitr::kable(x, format = "latex", booktabs = TRUE, longtable = FALSE,
+    caption = caption, digits = digits, row.names = FALSE, label = label, linesep = "",
+    align = if ("Term" %in% names(x)) c("l", rep("c", ncol(x)-1)) else ifelse(vapply(x, is.numeric, logical(1)) | names(x) == "Regulatory", "c", "l")) %>%
+    kableExtra::kable_styling(full_width = FALSE, position = "center", font_size = 9, latex_options = "scale_down") %>%
+    kableExtra::row_spec(0:nrow(x), background = "white", color = "black")
+  note <- switch(label,
+    "network-data"="Observed vertices only. Pairs count witness--member--hearing rows; ties count distinct member--agency pairs. Density divides ties by members times agencies; it does not use committee eligibility.",
+    "closure"="The unit is the observed 113th Congress network. Global and mean local clustering use its binary member projection. Four-cycles count two members sharing two agencies. The reference summarizes 99 random draws preserving each member's agency degree; the interval contains the 2.5th and 97.5th percentiles. Agency degree and committee opportunities are not preserved.",
+    "community-composition"=paste("Louvain groups use the weighted shared-agency projection. Contacts count distinct member ties to the leading agency; committee is the most frequent observed committee, not a roster.", agency_note_v2(community_composition_v2$TopAgency)),
+    "agency-audit"="Each observed agency code counts once. Richardson ideology is survey-based (Richardson et al., 2018): negative is liberal and positive conservative. Selin (2015) dimension 1 measures decision-maker independence; dimension 2 policy-decision independence. L1 denotes the four-level leadership category of Fazekas et al. (2023), who follow Dahlström et al. (2021). Acs coverage requires a direct parent key. Pooled Defense scores remain missing.",
+    "regulatory-audit"="Leadership categories follow the agency types of Dahlström et al. (2021) as coded by Fazekas et al. (2023); IRC = independent regulatory commission. Regulatory coding combines exact and rule-issuer name matches with fuzzy matches and is unaudited. Missing category comprises six matched codes without a source category (three regulatory and three nonregulatory) and 25 codes with at least one unmatched OPM unit. The latter also lack a regulatory value; each row counts a distinct combination of category and regulatory status. Absence of a regulatory flag does not identify a service agency.",
+    "acs-selection"="Direct Acs equals TRUE only for an exact parent-agency key in the dynamic ideal-point data. Pairs count witness--member--hearing rows. Administration-specific matches require a separate join.",
+    "science-support"=paste("Science flag equals 1 for the five exploratory science agencies and 0 otherwise. Presidential copartisanship equals 1 for the president's party; oversight equals 1 for oversight and 0 for legislative hearings. Pairs count observed exchanges.", agency_note_v2(c("DN", "EP", "NN", "NF", "NU"))),
+    "closure-congress"="Each row uses the observed network for one Congress. Global and mean local clustering refer to the binary member projection; four-cycles count two members sharing two agencies. Coverage differs across Congresses.",
+    "community-algorithms"="Both algorithms use the same weighted member projection. Weights count shared agencies; Walktrap uses four steps. Groups count communities; modularity compares within-group weight with the algorithm's degree-based reference.",
+    "community-agreement"="ARI = adjusted Rand index. Zero denotes chance-level agreement and one identical partitions. Modal committee is based on observed questioning and is not committee membership.",
+    "title-quality"="Titled hearings have one nonblank title. Unmatched share has no dictionary match; multiple-label share has more than one. Literal whole-word matching does not lemmatize or classify testimony.",
+    "title-panel-quality"=paste("Each hearing counts once per leading-agency panel; panels may overlap. Unmatched and multiple-label shares use titled hearings as denominators.", agency_note_v2(community_composition_v2$TopAgency)), NULL)
+  if (!is.null(note)) tab <- sub("\\end{table}", paste0("\\fignote{", note, "}\n\\end{table}"), tab, fixed=TRUE)
+  tab
+}
+# add a full-width single-spaced note under a table
+table_note_v2 <- function(x, note) {
+  knitr::asis_output(sub("\\end{table}", paste0("\\fignote{", note, "}\n\\end{table}"), x, fixed = TRUE))
+}
+# add full-width notes inside fixed figure environments
+plot_default_v2 <- knitr::knit_hooks$get("plot")
+knitr::knit_hooks$set(plot=function(x, options) {
+  out <- plot_default_v2(x, options)
+  if (is.null(options$fig.note)) return(out)
+  sub("\\end{figure}", paste0("\\fignote{", options$fig.note, "}\n\\end{figure}"), out, fixed=TRUE)
+})
+# names come from original opm records, including every pooled constituent
+agency_note_v2 <- function(codes) {
+  d <- dyad_b_raw %>% filter(agencycode %in% codes) %>% distinct(agencycode, opm_agencyname) %>% arrange(agencycode, opm_agencyname)
+  z <- vapply(split(d$opm_agencyname, d$agencycode), function(z) paste(tools::toTitleCase(tolower(z)), collapse=", "), character(1))
+  z <- gsub("U.s.", "United States", z, fixed = TRUE)
+  paste(paste(names(z), "=", z), collapse="; ")
+}
+
+# count main-body words (introduction through conclusion) for the title page
+count_body_words <- function(path) {
+  # read the source and keep the lines from the introduction up to the references
+  txt <- readLines(path, warn = FALSE)
+  body <- txt[grep("^# Introduction", txt):(grep("^# References", txt) - 1)]
+  # drop fenced blocks (r chunks and raw latex figure notes), including the fence lines
+  fence <- grepl("^```", body)
+  body <- body[!(fence | cumsum(fence) %% 2 == 1)]
+  body %>%
+    paste(collapse = " ") %>%
+    # drop html comments and display equations
+    stringr::str_remove_all("<!--.*?-->") %>%
+    stringr::str_remove_all("\\\\begin\\{equation\\}.*?\\\\end\\{equation\\}") %>%
+    stringr::str_remove_all("\\$\\$.*?\\$\\$") %>%
+    stringr::str_replace_all("`r [^`]+`", " x ") %>%
+    # count each inline formula, citation bracket, and cross-reference as one word
+    stringr::str_replace_all("\\$[^$]+\\$", " x ") %>%
+    stringr::str_replace_all("\\[[^\\]]*@[^\\]]*\\]", " cite ") %>%
+    stringr::str_replace_all("\\\\@ref\\([^)]*\\)|\\\\ref\\{[^}]*\\}", " 1 ") %>%
+    # drop remaining latex commands and section attributes such as {.unnumbered}
+    stringr::str_remove_all("\\\\[a-zA-Z]+") %>%
+    stringr::str_remove_all("\\{[^}]*\\}") %>%
+    # split on white space and keep tokens that contain a letter or digit
+    stringr::str_split("\\s+") %>%
+    unlist() %>%
+    stringr::str_detect("[[:alnum:]]") %>%
+    sum()
+}
+```
+
+# Abstract {.unnumbered}
+
+\begingroup\abstractstretch Congress relies on bureaucrats for information about how policy works. @ban2026 show that bureaucrats give less analytical information to legislators from the party opposite the president. Yet agencies hold policy views of their own, and some are built to resist presidential control. I argue that agency alignment and agency independence shape both who questions an agency and what its witnesses say. Treating House hearings from 1997 to 2014 as a network of legislators and agencies, I show that a few cabinet departments reach many members. Communities of members partly follow committee jurisdiction and cut across party lines. With continuous measures of agency ideology and independence, I find that the out-partisan gap in legislative hearings grows as an agency's ideology moves closer to the president's. In oversight hearings, the gap is smaller when an agency's decision makers are more independent of the president. These patterns suggest that committees organize who hears from an agency, while agency alignment and independence condition how much analysis its witnesses give.
+
+\noindent\textbf{Keywords:} Agency Ideology, Agency Independence, Bipartite Networks, Congressional Hearings, Information Sharing\par\endgroup
+
+```{r word-count, results='asis'}
+# print the computed main-body word count below the keywords
+cat("\\par\\noindent\\textbf{Word count:}",
+    format(count_body_words(knitr::current_input(dir = TRUE)), big.mark = ","),
+    "\\par\n")
+```
+
+\newpage
+
+# Introduction {.unnumbered}
+
+Congress depends on the executive branch for information about how policy works. Bureaucrats know how programs run and where they fail [@gailmard2012]. Committee hearings are one of the few public settings where members can question them directly. @ban2026 measure the analytical content of bureaucrats' answers in House hearings from 1997 to 2014. They find that bureaucrats give less analytical information to members from the party opposite the president. The gap is larger for political appointees.
+
+Their design studies what is said once a member and a bureaucrat meet. It does not ask which members question which agencies. That question matters for information sharing. A member who never questions an agency's witnesses receives none of their testimony. If members sort toward agencies that share their views, a gap measured within exchanges describes only part of the flow of information between the branches.
+
+Agencies also differ in ways that the presidential divide can miss. Many hold policy views that persist across Democratic and Republican administrations [@richardson2018]. I use *agency ideology* for an agency's perceived position on a liberal--conservative scale [@clinton2008; @richardson2018]. I use *agency alignment* for the relationship between an agency's ideology and the party of a political actor. A Republican member is aligned with a conservative agency and a Democratic member with a liberal one. The president is aligned with an agency in the same way. @ban2026 test one version of this idea in Table B8 of their appendix. They split agencies at the median of the ideology score of @richardson2018. Out-partisans receive even less analytical information from agencies aligned with the president. A second trait is *agency independence*, the structural protection of an agency from presidential control. Presidents and Congress build this protection into some agencies through fixed terms or exemptions from review [@lewis2003; @selin2015].
+
+I extend this work with the authors' replication data in three ways. First, I treat questioning as a bipartite network of members and agencies. I describe its centrality and closure along with its community structure. Second, I replace the median split with continuous measures of agency alignment and agency independence. Third, I specify a bipartite exponential random graph model (ERGM) to test whether aligned members are more likely to question an agency.
+
+The network analysis focuses on the 113th Congress (2013--2014). It is the most recent Congress in the replication data. It also had divided government. Republicans held the House majority under a Democratic president, so the president's out-partisans chaired the committees that invited agency witnesses. Oversight hearings make up 58 percent of its hearings, the largest share of any Congress in the data. In the replication data, agencies with an ideology score account for 88 percent of its witness--member rows. The survey behind that score took place in 2014, which places the measure closest in time to this Congress [@richardson2018]. Earlier Congresses show similar closure, so the 113th is not an unusual case (Appendix C).
+
+In the 113th Congress, 419 members questioned witnesses from 51 agency codes. Witnesses from the Department of Defense (DD) answered questions from 54 percent of these members. The median member questioned six agencies. Members share agencies far more often than in a random reference that keeps each member's activity fixed. The five communities I find in the member projection mix Democrats and Republicans. Their agreement with party is near zero. Their agreement with each member's most frequent committee is modest but positive. Together these patterns suggest that committees shape the network.
+
+I reproduce the four published tables I use at their reported precision. @ban2026 place agencies without an ideology score in the nonliberal group. When I instead restrict the sample to agencies with a score, the interaction in legislative hearings stays at $-0.62$ with a standard error (SE) of 0.21. The interaction in oversight hearings falls to $-0.29$ (SE 0.24) and is no longer significant at the 5 percent level.
+
+The continuous measures agree with the Table B8 results on the restricted sample. In legislative hearings the out-partisan gap grows as the agency's ideology moves toward the president's. In oversight hearings this pattern is weak, but the gap is smaller in agencies whose decision makers are more independent of the president. An exploratory test suggests that in oversight hearings the gap grows faster with alignment in science agencies. That result reverses when I drop the Environmental Protection Agency (EP). All of these estimates are conditional associations among observed exchanges.
+
+These results add to research on interbranch information in two ways. First, studies of hearings measure what witnesses say once a member asks [@ban2026]. Studies of oversight ask which agencies Congress targets [@clinton2014; @lowande2018]. A network of questioning links the two stages. It first shows which members question each agency. Only then can we ask what the agency tells them. Second, @ban2026 explain the content gap through the witness's tie to the president. Agency ideology and agency independence offer two other links between a witness and the president. Separating them helps identify the mechanism. If ideology drives the gap, the gap reflects goals that witnesses share with the president. If independence narrows the gap, the gap reflects the president's control over who leads the agency.
+
+The next section defines agency ideology and develops four hypotheses about alignment and agency independence. I then describe the data and the questioning network. The following sections reproduce the published estimates and report the extension estimates before laying out the network model. I close with the intergovernmental context of these hearings and the limits of this research.
+
+# Agency Alignment and Information Sharing {.unnumbered}
+
+@ban2026 treat bureaucrats as agents of the president. In their account, a member of the president's party is aligned with the witness and a member of the other party is not. This view fits political appointees well because the president chooses them. Career officials are a harder case. They stay across administrations, and their agencies develop policy commitments that outlast any one president [@clinton2008]. These commitments can place an agency closer to one party than to the president. A Republican member can therefore share the views of a conservative agency under a Democratic president.
+
+## Agency Ideology {.unnumbered}
+
+Agency ideology is an agency's position on the liberal--conservative scale as informed observers perceive it. @clinton2008 treat it as the policy preferences that experts attribute to an agency. @richardson2018 measure it as the perceived policy leanings of an agency across Democratic and Republican administrations. Their survey describes these leanings as arising from law and practice along with culture and tradition. Agency ideology matters because presidents treat ideologically distant agencies as sources of resistance. They place more political appointees in agencies whose views differ from theirs [@lewis2008]. In hearings, ideology may also shape whom a witness treats as an ally. A witness from a liberal agency may see a Democratic member as a supporter of its programs even under a Republican president.
+
+Researchers cannot observe agency ideology directly, so they infer it. @clinton2008 combine expert ratings of agencies in an item response model. @clinton2012 survey federal executives and place agencies on a common scale with presidents and members of Congress. @richardson2018 use the 2014 Survey on the Future of Government Service. It asked federal executives whether the policy views of each agency slant liberal or conservative across administrations. A Bayesian item response model turns these ratings into scores for 165 agencies. Negative scores denote liberal agencies and positive scores conservative ones. @acs2025 instead infers agency ideology from regulatory review. Agencies list their planned rules in the Unified Agenda, and the Office of Information and Regulatory Affairs (OIRA) decides which rules to review for the president. An item response model treats review decisions as signals of the distance between the president and the agency. Agency ideal points can shift from one administration to the next. Anchoring presidents at their NOMINATE scores places these ideal points on the same scale as members of Congress.
+
+@ban2026 use the score of @richardson2018. Their Table B8 codes an agency as liberal when its score falls below the median and as nonliberal otherwise. An agency is aligned with the president when this label matches the president's party. The binary code is simple to interpret. But it treats agencies just above and just below the median as different, and it requires a choice about agencies without a score.
+
+I keep the score of @richardson2018 as the primary measure because it covers the most agency codes in the hearing data. Instead of splitting the score at the median, I center it at the median agency and use it as a continuous measure. I then multiply it by the party of the member or the president. This product measures agency alignment and is positive when the two lean the same way. The estimates of @acs2025 vary by administration but match only 11 agency codes, so I use them for robustness checks. A later version will also compare results with the scores of @clinton2008 and @clinton2012.
+
+## Two Stages of Information Sharing {.unnumbered}
+
+Information sharing in hearings has two stages. A member first decides whether to question a witness from a given agency. The witness then decides how much analysis to give. Alignment can matter at both stages.
+
+Members choose whom to question within limits. Committees set the agenda and invite the witnesses. A member can question only agencies that appear before the member's committees. In a policy network, @leifeld2012 find that opportunity structures absorb the effect of shared preferences on information exchange. A test of alignment must therefore condition on opportunity. Within those opportunities, members may still prefer agencies whose work they support. An aligned agency can supply evidence that helps a member defend shared programs.
+
+*Questioning Ties Hypothesis (H1).* Among member--agency pairs with a verified opportunity to meet, a member is more likely to question an agency when the member's party is aligned with the agency's ideology.
+
+Research on oversight gives a reason to expect the opposite. @clinton2014 place agencies and committees on a common scale and relate oversight to their policy differences. In that account, members question distant agencies to pull them toward their own positions. Hostile oversight therefore predicts that misaligned members are more likely to question an agency. The questioning ties hypothesis (H1) and this rival make opposite predictions about the same coefficient. Members also contact agencies outside hearings. In agency correspondence logs, committee roles and district interests matter more than ideological conflict [@lowande2018]. A hearing tie therefore captures only the public part of this contact.
+
+Once a member and a witness meet, the witness chooses how much analysis to give. @ban2026 find less analytical information for presidential out-partisans. Their Table B8 suggests that the gap is larger in agencies aligned with the president. Officials in such agencies are more likely to share the president's goals. They therefore have more reason to treat the president's opponents as critics.
+
+*Analytical Content Hypothesis (H2).* Conditional on an exchange, presidential out-partisans receive less analytical information. The gap is larger when the agency's ideology is closer to the president's.
+
+The analytical content hypothesis (H2) restates the Table B8 expectation with a continuous measure. It compares agencies along the whole range of ideology rather than on two sides of a cutoff.
+
+## Agency Independence {.unnumbered}
+
+Presidents reach agencies through appointments and review. Agency design limits that reach. @lewis2003 shows that presidents and Congress choose design features in part to protect agencies from future political control. @selin2015 measures this protection as structural independence. She codes 50 structural features in the statutes of 321 federal agencies and estimates two dimensions with a Bayesian latent variable model. The first dimension is the independence of decision makers. It reflects limits on appointment and removal such as fixed terms and party-balancing rules. The second is the independence of policy decisions. It reflects limits on political review such as exemption from review by the Office of Management and Budget (OMB). Higher scores denote more independence on each dimension.
+
+Agency independence is separate from agency ideology. An independent agency can still lean liberal or conservative. @hollibaugh2018 show that nominee ideology and agency independence jointly shape presidential nominations and Senate confirmation. If witnesses give less to out-partisans because they answer to the president, the gap should shrink where the president's hold is weaker. Limits on who leads an agency weaken that hold most directly.
+
+*Agency Independence Hypothesis (H3).* The out-partisan gap in analytical information is smaller in agencies with more independent decision makers.
+
+Policy-decision independence is a separate test. It concerns review of what an agency does and not who leads it. Limits on review do not change who directs a witness, so I report its interaction without a directional prediction. I use both scores of @selin2015 as continuous measures. I also describe agencies with the four-level leadership category of @fazekas2023, who follow the agency types of @dahlstrom2021. It separates executive departments from distinct bureaus within them. It also separates independent administrations outside the cabinet from independent commissions. The category is coarser than the Selin scores [@selin2015], so I use it only to describe agencies in Appendix B.
+
+## Scientific Expertise and Rival Expectations {.unnumbered}
+
+Agencies with scientific missions may follow a different pattern. Civil servants who see their agency as politicized are more likely to leave and less likely to build expertise [@richardson2019]. The two parties also differ in how much their policy documents draw on science [@furnas2025]. If partisan conflict over science extends to hearings, science agencies may show a larger gap. I group five agencies as science agencies because their missions rest on scientific research or technical regulation. Two are the Department of Energy (DN) and the Environmental Protection Agency (EP). The other three are the National Aeronautics and Space Administration (NN) and the National Science Foundation (NF) along with the Nuclear Regulatory Commission (NU).
+
+*Scientific Agencies Hypothesis (H4).* In science agencies, the out-partisan gap grows faster than in other agencies as the agency's ideology moves closer to the president's.
+
+Professional norms point the other way. Scientists and engineers work under norms that reward analysis for any audience, which could narrow the gap in science agencies. The scientific agencies hypothesis (H4) is exploratory because five agencies give little variation. I report all lower-order terms. I also drop each science agency in turn to check whether one agency drives the result.
+
+
+# Data and Measurement {.unnumbered}
+
+```{r load-data, eval=TRUE, include=FALSE}
+# read untouched replication inputs
+dyad_b_raw <- haven::read_dta("bureaucrats_jop/dyad_b.dta")
+dyad_raw <- haven::read_dta("bureaucrats_jop/dyad.dta")
+aggregate_raw <- haven::read_dta("bureaucrats_jop/aggregate.dta")
+appearances_raw <- haven::read_dta("bureaucrats_jop/bureaucrat_pol.dta")
+agency_attributes <- read.csv("additional-data/clean/agency_attributes.csv", na.strings = c("", "NA"))
+stopifnot(!anyDuplicated(agency_attributes$agencycode), !anyDuplicated(dyad_b_raw$dyad_id))
+```
+
+```{r replication-variables, eval=TRUE, include=FALSE}
+# preserve each stata script's transformations
+rep_b <- dyad_b_raw %>% mutate(
+  comid = interaction(chamber, cmt_govtrack, drop = TRUE),
+  presid = factor(pres), agencyid = factor(agencycode), hid = factor(hearingid),
+  polappt2 = as.numeric(polappt_type == "PAS"),
+  polappt2 = ifelse(agencycode == "DD", NA_real_, polappt2),
+  polappt2 = ifelse(!is.na(dod_pol), dod_pol, polappt2),
+  pres_outparty = ifelse(pres_party %in% c(0, 1), 1 - pres_party, NA_real_),
+  polappt_presoutparty = polappt2 * pres_outparty,
+  mc_extreme = abs(party_median_ideo - dwnom1),
+  bureau_dem = as.integer(!is.na(agency_ideo) & agency_ideo < -0.1256831),
+  pres_dem = as.integer(pres %in% c("clinton", "obama")),
+  pres_align = as.integer(bureau_dem == pres_dem),
+  outparty_aligned = pres_outparty * pres_align,
+  num_word = log1p(num_word), word_count_ask = log1p(word_count_ask),
+  word_count = log1p(word_count))
+# table 3 does not log word_count_ask
+rep_nonb <- dyad_raw %>% group_by(hearingid) %>%
+  mutate(bureauappear = max(bureaucrat)) %>% ungroup() %>%
+  filter(bureaucrat != 1) %>% mutate(
+    comid = factor(committee_code2), presid = factor(pres),
+    hid = factor(hearingid), typeid = factor(type),
+    pres_outparty = ifelse(pres_party %in% c(0, 1), 1 - pres_party, NA_real_),
+    mc_extreme = abs(party_median_ideo - dwnom1))
+rep_aggregate <- aggregate_raw %>% mutate(
+  tot_q_b = q_b_co + q_b_out, tot_q_nb = q_nb_co + q_nb_out,
+  tot_q = tot_q_b + tot_q_nb, tot_q_co = q_b_co + q_nb_co,
+  tot_q_out = q_b_out + q_nb_out,
+  tot_a_b = a_b_co + a_b_out, tot_a_nb = a_nb_co + a_nb_out,
+  tot_a = tot_a_b + tot_a_nb,
+  tot_w_b = log1p(w_b_co + w_b_out),
+  tot_w_nb = log1p(w_nb_co + w_nb_out),
+  tot_w = log1p(w_b_co + w_b_out + w_nb_co + w_nb_out),
+  ln_tot_a = log1p(tot_a))
+inst_v2 <- c("pres_outparty", "majority", "chairspeech", "rankmemspeech", "mc_extreme", "les")
+committee_v2 <- c("subcommittee", "bill", "numwitness", "dyad_order_h")
+question_v2 <- c("gscore_ask", "posi_ask", "nega_ask", "acount_ask", "word_count_ask")
+# areg counts absorbed fe in residual degrees of freedom, including nested fe
+rep_fit_v2 <- function(data, rhs, fe, outcome = "ascore", cluster = "hid") {
+  # keep stata's one absorbed fe; explicit factors retain its collinearity/df convention
+  explicit <- paste0("factor(", fe[-1], ")")
+  f <- as.formula(paste(outcome, "~", paste(c(rhs, explicit), collapse = " + "), "|", fe[1]))
+  fit <- fixest::feols(f, data = data, vcov = as.formula(paste0("~", cluster)),
+    fixef.rm = "none", collin.tol = 1e-8,
+    ssc = fixest::ssc(K.adj = TRUE, K.fixef = "full", K.exact = TRUE, G.adj = TRUE),
+    notes = FALSE, nthreads = 1)
+  fit$rep_fe <- fe
+  fit
+}
+# published term labels and stacked clustered standard errors
+term_labels_v2 <- c(pres_outparty="President out-partisan", polappt2="Political appointee",
+  polappt_presoutparty="President out-partisan x Political appointee", majority="Majority party",
+  chairspeech="Committee chair", rankmemspeech="Ranking member", mc_extreme="Ideological extreme",
+  les="LES", subcommittee="Subcommittee", bill="Referral hearing", numwitness="Number of witnesses",
+  dyad_order_h="Dyad order", gscore_ask="Grandstanding score", posi_ask="Share of positive tone",
+  nega_ask="Share of negative tone", acount_ask="Analytical word count",
+  word_count_ask="(ln) Number of legislator words", pres_align="President-Aligned",
+  outparty_aligned="President out-partisan x President-Aligned", divided_house="Divided government",
+  P="Presidential agency alignment", OP="Out-partisan x Alignment",
+  OS1="Out-partisan x Decision-maker independence", OS2="Out-partisan x Policy-decision independence",
+  OScience="Out-partisan x Science agency", PScience="Alignment x Science agency",
+  OPScience="Out-partisan x Alignment x Science agency")
+rep_display_v2 <- function(models, terms = NULL, controls = FALSE, kind = "agency", means = NULL) {
+  if (is.null(terms)) terms <- unique(unlist(lapply(models, function(m)
+    names(coef(m))[!startsWith(names(coef(m)), "factor(")])))
+  labels <- unname(term_labels_v2[terms])
+  stopifnot(!anyNA(labels))
+  out <- data.frame(Term = as.vector(rbind(labels, "")))
+  for (j in seq_along(models)) {
+    m <- models[[j]]; b <- coef(m)[terms]; se <- fixest::se(m)[terms]
+    pv <- fixest::pvalue(m)[terms]
+    stars <- ifelse(pv < .001, "***", ifelse(pv < .01, "**", ifelse(pv < .05, "*", "")))
+    out[[paste0("(", j, ")")]] <- as.vector(rbind(
+      ifelse(is.na(b), "", paste0(sprintf("%.3f", b), stars)),
+      ifelse(is.na(b), "", sprintf("(%.3f)", se))))
+  }
+  fe_label <- switch(kind, agency="Agency, committee, issue, president FEs",
+    nonbureau="Witness type, issue, committee, president FEs", aggregate="Issue, committee, president FEs")
+  info <- data.frame(Term = c(if (controls) "Controls", fe_label,
+    if (kind != "aggregate") "Witness-hearing FE", if (kind == "nonbureau") "Bureaucrat appeared in hearing",
+    "Mean outcome measure", "N", "Adjusted R-squared"))
+  for (j in seq_along(models)) {
+    m <- models[[j]]
+    info[[paste0("(", j, ")")]] <- c(if (controls) "Yes",
+      ifelse("witness_id" %in% m$rep_fe, "", "Yes"),
+      if (kind != "aggregate") ifelse("witness_id" %in% m$rep_fe, "Yes", ""),
+      if (kind == "nonbureau") ifelse(j %in% c(3, 6), "Yes", ""),
+      sprintf("%.1f", if (is.null(means)) mean(fitted(m) + resid(m)) else means[j]), format(nobs(m), big.mark = ","),
+      sprintf("%.3f", fixest::r2(m, "ar2")))
+  }
+  bind_rows(out, info)
+}
+rep_table_v2 <- function(x, caption, label, groups = c(" "=1, Legislative=(ncol(x)-1)/2, Oversight=(ncol(x)-1)/2)) {
+  tab <- table_v2(x, caption, label=label) %>% kableExtra::add_header_above(groups, font_size = if (label == "extension-content") 8) %>%
+    kableExtra::column_spec(1, width="2.2in")
+  boundary <- which(x$Term %in% c("Controls", "Agency, committee, issue, president FEs",
+    "Witness type, issue, committee, president FEs", "Issue, committee, president FEs"))[1] - 1L
+  tab <- kableExtra::row_spec(tab, boundary, extra_latex_after="\\midrule")
+  if (label == "extension-content") {
+    tab <- kableExtra::row_spec(tab, 0:nrow(x), font_size = 8)
+    tab <- sub("\\begin{tabular}", "\\begingroup\\setlength{\\extrarowheight}{-1pt}\\begin{tabular}", tab, fixed = TRUE)
+    tab <- sub("\\end{tabular}", "\\end{tabular}\\endgroup", tab, fixed = TRUE)
+  }
+  tab
+}
+rep_note_v2 <- "Standard errors clustered at the hearing level are in parentheses. FE = fixed effect; LES = Legislative Effectiveness Score. * p < 0.05, ** p < 0.01, *** p < 0.001, following Ban et al. (2026)."
+
+```
+
+The data come from the [replication archive](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/RTYPSG) of @ban2026. The [project repository](https://github.com/jodypark/plsc508_political_networks/tree/main/replication-extension) holds the code and download instructions for the larger files. The main file `dyad_b.dta` pairs each bureaucratic witness with each member who questioned that witness in a House hearing. It covers `r format(n_distinct(dyad_b_raw$hearingid), big.mark = ",")` hearings in the 105th through 113th Congresses (1997--2014). It has `r format(nrow(dyad_b_raw), big.mark = ",")` witness--member rows with `r n_distinct(dyad_b_raw$asker)` members and `r n_distinct(dyad_b_raw$agencycode)` agency codes. Its `r format(n_distinct(dyad_b_raw$witness_id), big.mark = ",")` witness identifiers mark appearances in hearings. The same person can appear under several identifiers.
+
+The outcome is the analytical score (`ascore`) of @ban2026. It measures how much of a witness's answers to one member use falsifiable statements about the policy under discussion. The scale runs from 0 to 100. Observed values range from `r sprintf("%.2f", min(dyad_b_raw$ascore, na.rm = TRUE))` to `r sprintf("%.2f", max(dyad_b_raw$ascore, na.rm = TRUE))`. The score measures analytical content. It does not measure accuracy or influence on policy. The out-partisan indicator $O_{mh}$ follows the replication code. It equals 1 when member $m$ in hearing $h$ does not share the president's party.
+
+For the questioning ties hypothesis (H1), I define member--agency alignment as $C_{ma}=R_m\tilde{I}_a$. Here $R_m$ equals 1 for Republicans and $-1$ for Democrats. The term $\tilde{I}_a$ is the Richardson score of agency $a$ centered at the median agency [@richardson2018]. Higher scores are more conservative. A positive $C_{ma}$ means that the member's party and the agency lean the same way. The measure is an alignment gradient and not a distance on a common scale. For the analytical content hypothesis (H2), I define presidential alignment as $P_{at}=R_{p(t)}\tilde{I}_a$. The term $R_{p(t)}$ codes the party of the president in Congress $t$ in the same way. A positive $P_{at}$ means that the agency leans toward the president's party. Both products measure agency alignment, one with a member and one with the president. I keep the original rows and coding for the replication. I harmonize agency scores only for the extension.
+
+## Hearing Coverage {.unnumbered}
+
+Table \@ref(tab:network-data) reports the observed network in each Congress. Coverage generally grows through the 112th Congress. The 105th Congress has 194 hearings with 134 questioning members. The 110th through 112th Congresses each have more than 1,000 hearings. The 113th Congress has 831 hearings but nearly as many members as the 112th. Density ranges from 0.10 to 0.15 across Congresses and peaks in the 112th. The table counts only members and agencies that appear in the data. Density divides observed ties by the product of observed members and agency codes. Without committee rosters it is not a share of eligible pairs.
+
+## Network Construction {.unnumbered}
+
+For each Congress $t$, I set $y_{ma,t}=1$ when member $m$ questions a witness from agency $a$ at least once. Members form one mode of the network and agency codes form the other. Ties are undirected because a witness's answer does not create a second tie. Edge weights count the witness--member--hearing rows behind each tie. I keep all agency codes in the graph. The Department of Defense code (DD) pools the department with its three military departments. I keep it as one vertex because the replication data assign one code to all four units.
+
+The member projection counts the agencies each pair of members share. It describes shared audiences. It does not record any exchange between members. Analytical content exists only for observed exchanges. A pair without a tie has an undefined content score and not a score of zero.
+
+```{r network-data, eval=TRUE, results='asis'}
+# read the original bureaucratic witness dyads
+hw_data <- dyad_b_raw
+stopifnot(!anyDuplicated(hw_data$dyad_id),
+          !anyNA(hw_data[c("asker", "agencycode", "congress")]),
+          all(nzchar(hw_data$agencycode)))
+hw_congress <- focal_congress
+
+# reproduce table 2 appointment and presidential alignment coding
+hw_data <- hw_data %>%
+  mutate(pas = as.numeric(polappt_type == "PAS"),
+         pas = ifelse(agencycode == "DD", NA_real_, pas),
+         pas = ifelse(!is.na(dod_pol), dod_pol, pas),
+         outparty = 1 - pres_party,
+         appointment = case_when(
+           pas == 1 ~ "PAS / Defense political",
+           polappt == 0 | (agencycode == "DD" & dod_pol == 0) ~ "Career / Defense nonpolitical",
+           TRUE ~ "Other / unknown"),
+         party = case_when(party_code == 100 ~ "Democrat",
+                           party_code == 200 ~ "Republican",
+                           TRUE ~ "Other"))
+hw_sample <- hw_data %>% filter(congress == hw_congress)
+
+# a tie records participation; weight counts witness-member-hearing rows
+hw_edges <- hw_sample %>%
+  group_by(asker, agencycode) %>%
+  summarise(weight = n(), .groups = "drop")
+hw_members <- hw_sample %>% distinct(asker, party)
+stopifnot(!anyDuplicated(hw_members$asker))
+hw_members <- hw_members %>% arrange(asker)
+hw_agencies <- sort(unique(hw_sample$agencycode))
+hw_B <- matrix(0, nrow(hw_members), length(hw_agencies),
+               dimnames = list(paste0("M", hw_members$asker), hw_agencies))
+hw_B[cbind(match(hw_edges$asker, hw_members$asker),
+           match(hw_edges$agencycode, hw_agencies))] <- hw_edges$weight
+hw_g <- graph_from_biadjacency_matrix(hw_B, weighted = TRUE)
+hw_binary <- 1L * (hw_B > 0)
+
+# the member projection counts shared agencies, not direct member exchanges
+hw_shared <- tcrossprod(hw_binary)
+diag(hw_shared) <- 0
+hw_project <- graph_from_adjacency_matrix(hw_shared, mode = "undirected",
+                                          weighted = TRUE, diag = FALSE)
+stopifnot(is_bipartite(hw_g), !is_directed(hw_g),
+          ecount(hw_g) == nrow(hw_edges))
+
+
+network_sample <- hw_sample
+edges_v2 <- hw_edges
+members_v2 <- hw_members %>% mutate(Node = paste0("M", asker))
+agencies_v2 <- data.frame(agencycode = hw_agencies)
+B_v2 <- hw_B; binary_v2 <- hw_binary; graph_v2 <- hw_g; project_v2 <- hw_project
+coverage_v2 <- dyad_b_raw %>% group_by(congress) %>% summarise(
+  Members = n_distinct(asker), Agencies = n_distinct(agencycode),
+  Ties = n_distinct(asker, agencycode), Pairs = n(), Hearings = n_distinct(hearingid),
+  .groups = "drop") %>% mutate(Density = Ties / (Members * Agencies))
+table_v2(coverage_v2, "Observed member--agency networks by Congress", label = "network-data")
+```
+
+## Agency Attributes {.unnumbered}
+
+Figure \@ref(fig:vertex-distributions) shows the attributes of unique vertices in the 113th Congress. Each agency and each member counts once. The Richardson score is the primary measure of agency ideology [@richardson2018]. The two Selin scores measure decision-maker and policy-decision independence [@selin2015]. Of all 64 agency codes, 52 have an ideology score and 53 have each Selin score [@selin2015]. I set the ideology and Selin scores of the Department of Defense to missing in the network displays and the extension models. Its military departments do not share one verified parent score. This rule does not change the replication variables.
+
+The dynamic ideal points of @acs2025 vary by administration. Only 11 agency codes have a direct parent-level match to those estimates. I therefore use them only for robustness and join them by the actual administration. I do not average bureau scores into a parent score. Appendix B describes the crosswalk and reports coverage for each attribute.
+
+```{r agency-audit, eval=TRUE, include=FALSE}
+# conflicting constituent scores stay missing; never weight by pair frequency
+one_score_v2 <- function(x) {
+  z <- unique(x[!is.na(x)])
+  if (length(z) == 1L) z else NA_real_
+}
+agency_scores_v2 <- dyad_b_raw %>% group_by(agencycode) %>% summarise(
+  across(c(agency_ideo, selin_ind1, selin_ind2), one_score_v2),
+  ideology_values = n_distinct(agency_ideo, na.rm = TRUE),
+  selin1_values = n_distinct(selin_ind1, na.rm = TRUE),
+  selin2_values = n_distinct(selin_ind2, na.rm = TRUE), .groups = "drop") %>%
+  # dd pools military departments; partial constituent scores do not identify parent ideology
+  mutate(across(c(agency_ideo, selin_ind1, selin_ind2), ~ ifelse(agencycode == "DD", NA_real_, .x)))
+agency_audit_v2 <- agency_attributes %>% left_join(agency_scores_v2, by = "agencycode")
+# l1_four_level holds the fazekas et al. (2023) agency types, which follow dahlström et al. (2021)
+attribute_coverage_v2 <- data.frame(Attribute = c("Richardson", "Selin dimension 1", "Selin dimension 2", "L1 category", "Regulatory source", "Acs direct key"),
+  Observed = c(sum(!is.na(agency_audit_v2$agency_ideo)), sum(!is.na(agency_audit_v2$selin_ind1)),
+    sum(!is.na(agency_audit_v2$selin_ind2)), sum(!is.na(agency_audit_v2$l1_four_level)),
+    sum(!is.na(agency_audit_v2$regulatory)), sum(!is.na(agency_audit_v2$acs_agency_id)))) %>%
+  mutate(Total = nrow(agency_audit_v2), Missing = Total - Observed)
+regulatory_audit_v2 <- agency_audit_v2 %>%
+  mutate(l1_four_level = coalesce(l1_four_level, "Missing"),
+    regulatory = ifelse(is.na(regulatory), "Missing", as.character(regulatory))) %>%
+  count(l1_four_level, regulatory, .drop = FALSE)
+science_support_v2 <- dyad_b_raw %>% left_join(agency_attributes, by = "agencycode") %>%
+  count(science_flag, pres_party, oversight, name = "Pairs")
+acs_selection_v2 <- dyad_b_raw %>% left_join(agency_attributes %>% select(agencycode, acs_agency_id), by = "agencycode") %>%
+  group_by(DirectAcs = !is.na(acs_agency_id)) %>% summarise(Agencies = n_distinct(agencycode), Pairs = n(), .groups = "drop")
+```
+
+```{r vertex-distributions, eval=TRUE, fig.cap="Attributes of unique agencies and members in 113th Congress", fig.height=6, fig.note="Each agency and member counts once. Richardson et al. (2018) measure survey-based agency ideology: negative scores are liberal and positive scores conservative. Selin (2015) dimension 1 measures independence of decision makers; dimension 2 measures independence of policy decisions. Missing agency scores are reported explicitly."}
+# one observation per focal vertex; missing scores remain explicit
+focal_attributes_v2 <- agencies_v2 %>% left_join(agency_audit_v2, by = "agencycode")
+vertex_distributions_v2 <- bind_rows(lapply(c("agency_ideo", "selin_ind1", "selin_ind2"), function(v) {
+  data.frame(Panel = c(agency_ideo = "(a) Richardson ideology", selin_ind1 = "(b) Selin dimension 1", selin_ind2 = "(c) Selin dimension 2")[[v]],
+    Value = focal_attributes_v2[[v]], agencycode = focal_attributes_v2$agencycode)
+}))
+attribute_panels_v2 <- lapply(unique(vertex_distributions_v2$Panel), function(z) {
+  d <- filter(vertex_distributions_v2, Panel == z)
+  ggplot(filter(d, !is.na(Value)), aes(Value)) + geom_histogram(bins = 12, fill = pal_v2[1], color = "white") +
+    labs(title = z, subtitle = paste("Unique agencies:", nrow(d), "| Missing:", sum(is.na(d$Value))), x = NULL, y = "Agencies") + theme(text = element_text(size = 10))
+})
+party_panel_v2 <- ggplot(count(members_v2, party), aes(party, n, fill = party)) +
+  geom_col() + scale_fill_manual(values = c(Democrat = pal_v2[1], Republican = pal_v2[2], Other = "gray60")) +
+  labs(title = "(d) Member party", subtitle = paste("Unique members:", nrow(members_v2), "| Missing:", sum(is.na(members_v2$party))), x = NULL, y = "Members") +
+  theme(legend.position = "none", text = element_text(size = 10))
+patchwork::wrap_plots(c(attribute_panels_v2, list(party_panel_v2)), ncol = 2)
+```
+
+In the 113th Congress, `r sum(!is.na(focal_attributes_v2$agency_ideo))` of the `r nrow(focal_attributes_v2)` agency codes have a Richardson score [@richardson2018]. The median score is $`r sprintf("%.2f", median(focal_attributes_v2$agency_ideo, na.rm = TRUE))`$. Scores range from $`r sprintf("%.2f", min(focal_attributes_v2$agency_ideo, na.rm = TRUE))`$ to `r sprintf("%.2f", max(focal_attributes_v2$agency_ideo, na.rm = TRUE))`. The two Selin dimensions are positively correlated ($r=`r sprintf("%.2f", cor(focal_attributes_v2$selin_ind1, focal_attributes_v2$selin_ind2, use = "complete.obs"))`$) but far from identical [@selin2015]. Ideology and decision-maker independence are only weakly related ($r=`r sprintf("%.2f", cor(focal_attributes_v2$agency_ideo, focal_attributes_v2$selin_ind1, use = "complete.obs"))`$). This weak relation supports treating them as separate moderators. The members are `r sum(members_v2$party == "Democrat")` Democrats and `r sum(members_v2$party == "Republican")` Republicans who questioned at least one agency witness.
+
+# Structure of Congressional Questioning {.unnumbered}
+
+This section describes the questioning network of the 113th Congress in three steps. Centrality shows which agencies reach many members. Closure shows whether members share the same agencies. Community detection shows which groups of members draw on the same set of agencies. Each step says something about how ties form. Each also relates to what members can learn from agency witnesses.
+
+## Agency Reach {.unnumbered}
+
+An agency's reach is the number of distinct members who question its witnesses. In network terms it is the agency's degree. Reach shows how widely an agency's testimony spreads across the House. Figure \@ref(fig:network-plot) draws the bipartite network. Members sit on the left and agencies on the right. Node size shows degree. Agency fill shows the Richardson score [@richardson2018], and gray agencies lack an unambiguous score. Vertical position follows party and degree. It does not encode ideological distance. Figure \@ref(fig:centrality) plots each agency's reach as a share of members against its betweenness.
+
+```{r network-plot, eval=TRUE, fig.cap="Observed questioning network in 113th Congress", fig.height=7, fig.note=paste("Node size shows distinct contacts. Members use party color and shape; agencies use survey-based Richardson et al. (2018) ideology (negative = liberal; positive = conservative). Gray marks agencies without a usable score. The Department of Defense (DD) is gray because it pools four units whose scores differ. Position does not measure ideological distance.", agency_note_v2(names(sort(colSums(binary_v2), decreasing=TRUE))[1:8]))}
+# fixed two-mode layout; position is not ideological distance
+member_nodes_v2 <- members_v2 %>% mutate(Degree = rowSums(binary_v2)) %>% arrange(party, desc(Degree), asker) %>%
+  mutate(x = 0, y = seq(0, 1, length.out = n()))
+agency_nodes_v2 <- focal_attributes_v2 %>% mutate(Node = agencycode, Degree = colSums(binary_v2)) %>%
+  arrange(desc(Degree), agencycode) %>% mutate(x = 1, y = seq(0, 1, length.out = n()))
+network_layout_v2 <- bind_rows(select(member_nodes_v2, Node, x, y), select(agency_nodes_v2, Node, x, y))
+network_segments_v2 <- edges_v2 %>% mutate(Node = paste0("M", asker)) %>%
+  left_join(select(member_nodes_v2, Node, x, y), by = "Node") %>%
+  left_join(select(agency_nodes_v2, agencycode, xend = x, yend = y), by = "agencycode")
+# party uses outline/shape; agency ideology uses continuous fill
+member_labels_v2 <- member_nodes_v2 %>% group_by(party) %>%
+  summarise(y = mean(range(y)), label = paste0(first(party), " (n = ", n(), ")"), .groups = "drop")
+network_plot_v2 <- ggplot() + geom_segment(data = network_segments_v2, aes(x, y, xend = xend, yend = yend), color = "gray70", alpha = .13, linewidth = .15) +
+  geom_point(data = member_nodes_v2, aes(x, y, color = party, shape = party, size = Degree)) +
+  geom_point(data = agency_nodes_v2, aes(x, y, fill = agency_ideo, size = Degree), shape = 22, color = "gray30") +
+  geom_text(data = head(agency_nodes_v2, 8), aes(x, y, label = agencycode), nudge_x = .045, hjust = 0, size = 3) +
+  scale_color_manual(values = c(Democrat = pal_v2[1], Republican = pal_v2[2], Other = "gray50"), name = "Members") +
+  scale_shape_manual(values = c(Democrat = 16, Republican = 17, Other = 3), name = "Members") +
+  scale_fill_gradient2(low = pal_v2[1], mid = "white", high = pal_v2[2], midpoint = 0, na.value = "gray65", name = "Agencies: Richardson ideology") +
+  scale_size_continuous(range = c(.7, 5), guide = "none") +
+  annotate("text", x = c(0, 1), y = 1.04, label = c(paste0("Members (n = ", nrow(member_nodes_v2), ")"), paste0("Agencies (n = ", nrow(agency_nodes_v2), ")")), size = 3) +
+  geom_text(data = member_labels_v2, aes(x = -.04, y = y, label = label), hjust = 1, size = 3) +
+  coord_cartesian(xlim = c(-.4, 1.2), clip = "off") + theme_void(base_size = 10) +
+  theme(legend.position = "bottom", legend.box = "vertical", plot.background = element_rect(fill = "white", color = NA))
+network_plot_v2
+```
+
+```{r centrality, eval=TRUE, fig.cap="Agency reach and binary betweenness", fig.height=5, fig.note=paste("Degree counts distinct member contacts; degree share divides by observed members. Strength counts witness--member--hearing rows. Normalized binary betweenness is the share of shortest paths through a vertex, with edge weights ignored. Color uses survey-based Richardson et al. (2018) ideology (negative = liberal; positive = conservative). Gray marks agencies without a usable score. The Department of Defense (DD) is gray because it pools four units whose scores differ.", agency_note_v2(c("DD", "HE", "TR", "ST", "HS", "TN")))}
+# binary path measures; strength counts pair rows
+centrality_v2 <- data.frame(Node = V(graph_v2)$name, Mode = ifelse(V(graph_v2)$type, "Agency", "Member"),
+  Degree = degree(graph_v2), DegreeShare = degree(graph_v2) / ifelse(V(graph_v2)$type, nrow(binary_v2), ncol(binary_v2)),
+  Strength = strength(graph_v2), Eigenvector = eigen_centrality(graph_v2, weights = NA)$vector,
+  Betweenness = betweenness(graph_v2, weights = NA, normalized = TRUE))
+agency_centrality_v2 <- centrality_v2 %>% filter(Mode == "Agency") %>% left_join(agency_scores_v2, by = c("Node" = "agencycode"))
+centrality_plot_v2 <- ggplot(agency_centrality_v2, aes(DegreeShare, Betweenness)) +
+  geom_point(aes(size = Strength, color = agency_ideo), alpha = .8) +
+  geom_text(data = filter(agency_centrality_v2, rank(-Degree) <= 5 | Node == "TN"), aes(label = Node), nudge_y = .002, size = 3) +
+  scale_color_gradient2(low = pal_v2[1], mid = "gray85", high = pal_v2[2], na.value = "gray60", name = "Richardson ideology") +
+  scale_size_continuous(range = c(2, 7)) + labs(x = "Share of observed members contacted", y = "Normalized binary betweenness") + theme(legend.position = "bottom")
+centrality_plot_v2
+```
+
+A few cabinet departments reach many members. The network has `r nrow(binary_v2)` members and `r ncol(binary_v2)` agency codes joined by `r format(sum(binary_v2), big.mark = ",")` ties. These ties rest on `r format(nrow(network_sample), big.mark = ",")` witness--member rows. The median member questioned `r median(rowSums(binary_v2))` agencies and the most active member questioned `r max(rowSums(binary_v2))`. Reach varies much more across agencies. The median agency reached `r median(colSums(binary_v2))` members. The Department of Defense (DD) reached `r colSums(binary_v2)[["DD"]]` members or `r round(100 * colSums(binary_v2)[["DD"]] / nrow(binary_v2))` percent of those observed. The Department of Health and Human Services (HE) follows with `r colSums(binary_v2)[["HE"]]` members and the Department of the Treasury (TR) with `r colSums(binary_v2)[["TR"]]`. The Department of State (ST) with `r colSums(binary_v2)[["ST"]]` members and the Department of Homeland Security (HS) with `r colSums(binary_v2)[["HS"]]` complete the top five. These five departments hold `r round(100 * sum(sort(colSums(binary_v2), decreasing = TRUE)[1:5]) / sum(binary_v2))` percent of all ties. Their reach likely reflects broad jurisdictions. Each runs programs that fall under several House committees. Witnesses from the Department of Defense alone appeared before `r n_distinct(network_sample$committee_name[network_sample$agencycode == "DD"])` of the `r n_distinct(network_sample$committee_name)` committees in the data.
+
+Reach does not follow ideology. Among agencies with a score, the correlation between degree and the Richardson score is $r=`r sprintf("%.3f", cor(agency_centrality_v2$Degree, agency_centrality_v2$agency_ideo, use = "complete.obs"))`$ [@richardson2018]. The agencies with the widest reach are large departments with broad portfolios. Betweenness is the share of shortest paths between other vertices that pass through a given vertex [@borgatti2006]. Most of the agencies with the widest reach also have high betweenness. The Office of the United States Trade Representative (TN) is the main exception. It reached only `r colSums(binary_v2)[["TN"]]` members but ranks fourth in betweenness. Its witnesses appeared before `r n_distinct(network_sample$committee_name[network_sample$agencycode == "TN"])` committees with different jurisdictions. The ties of this office therefore connect members across several committees.
+
+For information sharing, concentrated reach means that a few departments supply a large share of what members hear. The Department of Defense alone accounts for `r round(100 * mean(network_sample$agencycode == "DD"))` percent of witness--member rows. Any average gap across exchanges therefore weighs these departments heavily. A pair-level estimate can reflect the behavior of the Departments of Defense and Health and Human Services more than that of the typical agency.
+
+## Shared Audiences {.unnumbered}
+
+Ordinary triangles cannot form in this network. A tie links a member to an agency and never joins two members or two agencies. The smallest closed cycle therefore has four vertices, in which two members both question the same two agencies. Closure in this setting means that members who question the same agency also share other agencies. Their audiences overlap. I measure closure because overlap would make ties depend on one another. Pair-level models of questioning assume that they do not. I measure it in two ways. Four-cycles count cases in which two members share two agencies. Clustering in the member projection asks whether two members linked to a third member are also linked to each other. Projection inflates this clustering because every agency creates a clique among the members who question it. Table \@ref(tab:closure) compares the observed values with 99 reference networks. Each reference draw keeps every member's number of agencies and assigns agencies at random.
+
+```{r closure, eval=TRUE, results='asis'}
+# calculate three nontrivial closure summaries from the incidence matrix
+closure_closure <- function(B) {
+  shared <- tcrossprod(B)
+  common <- shared[upper.tri(shared)]
+  diag(shared) <- 0
+  g <- graph_from_adjacency_matrix(1L * (shared > 0),
+                                   mode = "undirected", diag = FALSE)
+  c(Global = transitivity(g, type = "global", isolates = "zero"),
+    MeanLocal = transitivity(g, type = "average", isolates = "zero"),
+    FourCycles = sum(common * (common - 1) / 2))
+}
+closure_observed <- closure_closure(binary_v2)
+closure_bipartite_triangles <- sum(count_triangles(graph_v2)) / 3
+stopifnot(closure_bipartite_triangles == 0)
+
+# randomize agency choices, retaining every member's observed degree
+# this reference does not preserve agency degree or committee opportunities
+set.seed(508)
+closure_draws <- 99
+closure_null <- replicate(closure_draws, {
+  B <- matrix(0L, nrow(binary_v2), ncol(binary_v2))
+  for (i in seq_len(nrow(B))) {
+    B[i, sample.int(ncol(B), rowSums(binary_v2)[i])] <- 1L
+  }
+  closure_closure(B)
+})
+closure_closure_table <- data.frame(
+  Measure = c("Global clustering", "Mean local clustering", "Four-cycles"), Observed = unname(closure_observed),
+  NullMean = rowMeans(closure_null),
+  NullLow = apply(closure_null, 1, quantile, probs = 0.025),
+  NullHigh = apply(closure_null, 1, quantile, probs = 0.975))
+closure_v2 <- closure_observed
+closure_reference_v2 <- closure_closure_table
+table_v2(rename(closure_reference_v2, `Reference mean`=NullMean, `2.5 percentile`=NullLow, `97.5 percentile`=NullHigh), "Closure versus 99 row-degree-preserving reference draws", label = "closure")
+```
+
+The observed network has `r format(closure_v2[["FourCycles"]], big.mark = ",")` four-cycles. The reference draws average `r format(round(closure_reference_v2$NullMean[3]), big.mark = ",")`, and their 95 percent interval ends at `r format(round(closure_reference_v2$NullHigh[3]), big.mark = ",")`. Global clustering in the projection is `r sprintf("%.2f", closure_v2[["Global"]])` against `r sprintf("%.2f", closure_reference_v2$NullMean[1])` in the reference. Mean local clustering is `r sprintf("%.2f", closure_v2[["MeanLocal"]])` against `r sprintf("%.2f", closure_reference_v2$NullMean[2])`. Pairs of members thus share two agencies about `r sprintf("%.1f", closure_v2[["FourCycles"]] / closure_reference_v2$NullMean[3])` times as often as members with the same activity would by chance.
+
+The reference has two limits. It does not hold agency degree fixed. Part of the excess could come from the popularity of the Departments of Defense and Health and Human Services alone. It also ignores committee opportunities. Members of one committee meet the same witnesses by design. Closure here may therefore reflect committee structure more than member choice.
+
+For information sharing, closure means that an agency's testimony reaches members who already hear from the same other agencies. These members can compare what several agencies say about related programs. The overlap also shows that ties are not independent. This dependence is one reason to test the questioning ties hypothesis (H1) with a network model.
+
+## Communities and Committees {.unnumbered}
+
+Community detection asks whether members cluster into groups that draw on the same agencies. Two structures could produce such groups. Committees could create them because members of one committee hear the same witnesses. Party could create them if members of each party seek out agencies that share their views. For information sharing, groups that follow committees would hear agency testimony as bipartisan audiences. Groups that follow party would hear it in separate partisan circles.
+
+Figure \@ref(fig:communities) shows Louvain communities in the weighted member projection. Edge weights count shared agencies. Node size counts contacted agencies and shape marks party. Projection can create groups when many members question one popular agency [@lo2026]. I therefore compare the Louvain partition with a Walktrap partition on the same projection [@yang2016].
+
+```{r communities, eval=TRUE, fig.cap="Louvain communities in the weighted shared-agency member projection", fig.height=7, fig.note="Louvain communities use shared-agency counts in the member projection and seed 508. Node size counts agency contacts; shape marks member party. Edges represent shared agencies, not direct communication."}
+# use shared-agency counts as similarities for both algorithms
+set.seed(508)
+hw_louvain <- cluster_louvain(hw_project, weights = E(hw_project)$weight)
+hw_walktrap <- cluster_walktrap(hw_project, weights = E(hw_project)$weight,
+                                steps = 4)
+hw_communities <- list(Louvain = hw_louvain, Walktrap = hw_walktrap)
+hw_modularity <- data.frame(
+  Algorithm = names(hw_communities),
+  Groups = sapply(hw_communities, function(x) length(unique(membership(x)))),
+  Modularity = sapply(hw_communities, function(x)
+    modularity(hw_project, membership(x), weights = E(hw_project)$weight)))
+hw_agreement <- compare(hw_louvain, hw_walktrap, method = "adjusted.rand")
+
+# compare the same partition with party and modal observed committee
+hw_modal_committee <- hw_sample %>% count(asker, committee_name) %>%
+  arrange(asker, desc(n), committee_name) %>% group_by(asker) %>%
+  slice_head(n = 1) %>% ungroup()
+hw_member_groups <- hw_members %>%
+  mutate(Community = as.integer(membership(hw_louvain)[paste0("M", asker)]),
+         Committee = hw_modal_committee$committee_name[
+           match(asker, hw_modal_committee$asker)])
+hw_party_ari <- compare(hw_member_groups$Community,
+                        as.integer(factor(hw_member_groups$party)),
+                        method = "adjusted.rand")
+hw_committee_ari <- compare(hw_member_groups$Community,
+                            as.integer(factor(hw_member_groups$Committee)),
+                            method = "adjusted.rand")
+hw_composition <- hw_member_groups %>% group_by(Community) %>%
+  summarise(Members = n(), Democrats = sum(party == "Democrat"),
+            Republicans = sum(party == "Republican"),
+            TopCommittee = names(which.max(table(Committee))),
+            .groups = "drop") %>%
+  mutate(TopCommittee = sub("^Committee on (the )?", "", TopCommittee))
+
+# identify each community's most frequently contacted agency code
+hw_agency_groups <- hw_edges %>%
+  left_join(hw_member_groups %>% select(asker, Community), by = "asker") %>%
+  group_by(Community, agencycode) %>% summarise(Contacts = n(), .groups = "drop") %>%
+  arrange(Community, desc(Contacts), agencycode) %>% group_by(Community) %>%
+  slice_head(n = 1) %>% ungroup() %>%
+  rename(TopAgency = agencycode)
+hw_composition <- left_join(hw_composition, hw_agency_groups, by = "Community")
+louvain_v2 <- hw_louvain; walktrap_v2 <- hw_walktrap
+member_groups_v2 <- hw_member_groups; community_composition_v2 <- hw_composition
+community_agreement_v2 <- data.frame(Comparison = c("Louvain / Walktrap", "Louvain / party", "Louvain / modal committee"),
+  ARI = c(hw_agreement, hw_party_ari, hw_committee_ari))
+# okabe-ito colors separate communities; shape carries party
+set.seed(508)
+hw_project_xy <- layout_with_fr(hw_project, weights = E(hw_project)$weight)
+hw_group_colors <- pal_v2[c(5, 1, 3, 4, 7, 6, 2)][
+                       seq_len(max(hw_member_groups$Community))]
+op <- par(mar = c(3, 1, 1, 1), ps = 10)
+plot(hw_project, layout = hw_project_xy, vertex.label = NA,
+     vertex.size = 3 + sqrt(rowSums(hw_binary)) / 2,
+     vertex.color = hw_group_colors[hw_member_groups$Community[match(V(hw_project)$name, paste0("M", hw_member_groups$asker))]],
+     vertex.frame.color = NA,
+     vertex.shape = ifelse(hw_members$party == "Democrat", "circle", ifelse(hw_members$party == "Republican", "square", "triangle")),
+     edge.color = adjustcolor("gray50", alpha.f = 0.04),
+     edge.width = 0.15 + log1p(E(hw_project)$weight) / 5)
+legend("topleft", paste("Community", seq_along(hw_group_colors)),
+       col = hw_group_colors, pch = 16, pt.cex = 1.6, cex = 1, bty = "n")
+legend("bottom", c("Democrat", "Republican"), pch = c(16, 15),
+       col = "gray30", pt.cex = 1.6, cex = 1, horiz = TRUE,
+       bty = "n", inset = c(0, -0.07), xpd = NA)
+par(op)
+community_plot_v2 <- recordPlot()
+```
+
+```{r community-composition, results='asis'}
+# describe observed community membership
+table_v2(community_composition_v2 %>% rename(Agency = TopAgency, Committee = TopCommittee),
+  "Louvain composition with leading agency and modal observed committee", 0, label = "community-composition")
+```
+
+Louvain finds `r length(unique(membership(louvain_v2)))` communities with a modularity of `r sprintf("%.2f", hw_modularity$Modularity[1])`. This modularity is low because the projection is dense. In it `r round(100 * edge_density(project_v2))` percent of member pairs share at least one agency. Walktrap finds `r hw_modularity$Groups[2]` groups with a modularity of `r sprintf("%.2f", hw_modularity$Modularity[2])`. Its partition agrees only modestly with Louvain (adjusted Rand index `r sprintf("%.2f", community_agreement_v2$ARI[1])`; Appendix C).
+
+Table \@ref(tab:community-composition) describes each Louvain community. A cabinet department leads each one. The Department of Defense leads the largest community of `r max(community_composition_v2$Members)` members. Its most common committee is Armed Services. The Department of the Treasury leads a community tied to Financial Services. The Department of Energy leads one tied to Energy and Commerce. The Department of Health and Human Services pairs with Oversight and Government Reform. The Department of Homeland Security pairs with the Judiciary Committee. The leading agency counts distinct member ties within the community. The modal committee comes from observed questioning and is not a roster.
+
+Party does not separate the communities. Democrats make up between `r round(100 * min(community_composition_v2$Democrats / community_composition_v2$Members))` and `r round(100 * max(community_composition_v2$Democrats / community_composition_v2$Members))` percent of each community. The adjusted Rand index between communities and party is $`r sprintf("%.3f", community_agreement_v2$ARI[2])`$. The index for modal committee is `r sprintf("%.2f", community_agreement_v2$ARI[3])`. Committee jurisdiction thus appears to drive tie formation more than party does. Members meet agencies through the committees they serve on.
+
+The consequence for information sharing is that an agency's testimony reaches a bipartisan audience defined by jurisdiction. Copartisans and out-partisans of the president sit in the same communities. The partisan gap in @ban2026 arises inside these shared audiences. Members of the two parties do not sort into separate agency groups. Community membership comes from the outcome network. I use it to describe the network and not as a covariate.
+
+# Alignment and Analytical Content {.unnumbered}
+
+This section first reproduces the published estimates. It then reports the extension estimates for the analytical content hypothesis (H2) and the agency independence hypothesis (H3). It closes with the network model for the questioning ties hypothesis (H1).
+
+## Replication Baseline {.unnumbered}
+
+I reproduce Tables 2 through 4 of @ban2026 along with Table B8 of their appendix. I translate their Stata scripts to R and use their data without change. Appendix A reports each table. Every coefficient I checked matches the published value at reported precision. The clustered standard errors and sample sizes match as well. In the first legislative model of Table 2, the out-partisan coefficient is $-1.40$ (SE 0.14).
+
+Table B8 is the closest published test of the analytical content hypothesis (H2). @ban2026 code an agency as liberal when its Richardson score falls below the median of $-0.126$ [@richardson2018]. They place agencies without a score in the nonliberal group. In legislative hearings the interaction between out-partisanship and alignment is $-0.61$ (SE 0.21). In oversight hearings it is $-0.58$ (SE 0.22).
+
+When I instead restrict the sample to agencies with a score, the legislative sample falls from 30,117 to 27,194 rows (Table \@ref(tab:rep-b8-sensitivity)). The legislative interaction stays at $-0.62$ (SE 0.21). The oversight sample falls from 27,401 to 22,545 rows. Its interaction shrinks to $-0.29$ (SE 0.24) and is no longer significant at the 5 percent level. The oversight estimate thus depends on how @ban2026 code agencies without a score. The continuous measure avoids the cutoff but also drops agencies without a score.
+
+## Extension Design and Estimates {.unnumbered}
+
+I estimate a content model that extends the pair-level design of @ban2026. Let $b$ index witnesses and $m$ members. Let $h$ index hearings and $a$ agencies, and let $t$ index Congresses. The content model is
+
+\begin{equation}
+\begin{aligned}
+Y_{bmh} = {} & \beta_1 O_{mh} + \beta_2 P_{at} + \beta_3 O_{mh}P_{at}
+  + \beta_4 O_{mh}S_{1a} + \beta_5 O_{mh}S_{2a} \\
+ & + \boldsymbol{\gamma}^{\top}\mathbf{X}_{bmh}
+  + \alpha_a + \alpha_c + \alpha_i + \alpha_p + \varepsilon_{bmh}
+\end{aligned}
+(\#eq:content)
+\end{equation}
+
+where $Y_{bmh}$ is the mean analytical score of the answers that witness $b$ gives member $m$ in hearing $h$. The indicator $O_{mh}$ equals 1 when the member does not share the president's party. The term $P_{at}$ is presidential alignment as defined above. The terms $S_{1a}$ and $S_{2a}$ are the Selin scores for the independence of decision makers and of policy decisions [@selin2015]. I standardize both over unique agencies. The vector $\mathbf{X}_{bmh}$ holds the original controls for the witness and the member along with the hearing and the question. The vector $\boldsymbol{\gamma}$ holds their coefficients. The terms $\alpha_a$ and $\alpha_c$ are agency and committee fixed effects. The terms $\alpha_i$ and $\alpha_p$ are issue and president fixed effects. The term $\varepsilon_{bmh}$ is the error.
+
+Agency fixed effects absorb the main effects of the Selin scores [@selin2015] because the scores do not vary within an agency. Presidential alignment $P_{at}$ changes sign with the president's party, so its main effect stays in the model. The coefficient $\beta_1$ is the out-partisan gap in an agency at the median ideology and the mean of both Selin scores. The coefficient $\beta_3$ is the change in that gap when the agency moves one unit toward the president on the Richardson scale [@richardson2018]. One unit is about the distance between agencies at the 25th and 75th percentiles of that scale. The coefficients $\beta_4$ and $\beta_5$ are the changes in the gap for one standard deviation of each Selin score.
+
+The analytical content hypothesis (H2) predicts $\beta_3<0$. The agency independence hypothesis (H3) predicts $\beta_4>0$ because more independence should shrink a negative gap. I report $\beta_5$ without a directional prediction. For the scientific agencies hypothesis (H4), I add the triple interaction $O_{mh}P_{at}D_a$ with all identified lower-order terms. Here $D_a$ equals 1 for the five science agencies. They are the Department of Energy and the Environmental Protection Agency along with the National Aeronautics and Space Administration. The other two are the National Science Foundation and the Nuclear Regulatory Commission. I estimate legislative and oversight hearings separately as the authors do. Within each hearing type all models use one common sample of pairs with an ideology score and both Selin scores. Standard errors cluster by hearing as in the replication.
+
+```{r extension-content, results='asis'}
+# center ideology and standardize independence over unique audited agencies
+extension_scores_v2 <- agency_scores_v2 %>% mutate(
+  Icenter = agency_ideo - median(agency_ideo, na.rm=TRUE),
+  S1 = as.numeric(scale(selin_ind1)), S2 = as.numeric(scale(selin_ind2)))
+extension_data_v2 <- rep_b %>% select(-agency_ideo, -selin_ind1, -selin_ind2) %>%
+  left_join(extension_scores_v2, by="agencycode") %>%
+  left_join(select(agency_attributes, agencycode, science_flag), by="agencycode") %>%
+  mutate(P = ifelse(pres %in% c("clinton", "obama"), -1, 1) * Icenter,
+    OP = pres_outparty * P, OS1 = pres_outparty * S1, OS2 = pres_outparty * S2,
+    OScience = pres_outparty * science_flag, PScience = P * science_flag,
+    OPScience = OP * science_flag)
+extension_controls_v2 <- c("polappt2", inst_v2[-1], committee_v2, question_v2)
+extension_rhs_v2 <- list(
+  Alignment=c("pres_outparty", "P", "OP"),
+  DecisionMaker=c("pres_outparty", "P", "OP", "OS1"),
+  PolicyDecision=c("pres_outparty", "P", "OP", "OS2"),
+  Joint=c("pres_outparty", "P", "OP", "OS1", "OS2"),
+  Science=c("pres_outparty", "P", "OP", "OS1", "OS2", "OScience", "PScience", "OPScience"))
+# use one complete sample within each hearing type for the nested comparisons
+extension_complete_v2 <- extension_data_v2 %>% filter(if_all(all_of(c("ascore", "pres_outparty", "P", "OS1", "OS2", "science_flag",
+  extension_controls_v2, "agencyid", "presid", "majortopic", "comid", "hid")), ~ !is.na(.x)))
+extension_models_v2 <- unlist(lapply(0:1, function(o) lapply(extension_rhs_v2, function(r)
+  rep_fit_v2(filter(extension_complete_v2, oversight == o), c(r, extension_controls_v2),
+    c("agencyid", "presid", "majortopic", "comid")))), recursive=FALSE)
+# display joint and exploratory specifications; separate-moderator fits remain available
+extension_main_models_v2 <- extension_models_v2[c(4, 5, 9, 10)]
+extension_terms_v2 <- c("pres_outparty", "P", "OP", "OS1", "OS2", "OScience", "PScience", "OPScience")
+extension_table_v2 <- rep_display_v2(extension_main_models_v2, extension_terms_v2, controls=TRUE)
+table_note_v2(rep_table_v2(extension_table_v2, "Analytical content by continuous agency alignment and independence", "extension-content"),
+  paste(rep_note_v2, "The outcome is the analytical score of bureaucratic answers to a member. Columns 1 and 3 include both independence interactions; columns 2 and 4 add the exploratory science interaction and all identified lower-order terms. Agency fixed effects absorb static agency main effects. I center ideology at the median unique agency and standardize each Selin (2015) score over unique agencies. Richardson et al. (2018) provide survey-based ideology: negative is liberal and positive is conservative. Presidential alignment multiplies centered ideology by presidential party (Republican = 1; Democratic = -1). All columns within hearing type use the same complete cases. Estimates describe conditional associations. The exploratory triple interaction is sensitive to omitting the Environmental Protection Agency (Appendix D).",
+  "The text defines the five science agencies."))
+# retain all estimates and leave-one-science-agency-out sensitivity for appendix d
+extension_results_v2 <- bind_rows(lapply(seq_along(extension_models_v2), function(j) {
+  m <- extension_models_v2[[j]]
+  data.frame(Hearing=ifelse(j <= 5, "Legislative", "Oversight"), Specification=names(extension_rhs_v2)[(j-1)%%5+1],
+    Term=names(coef(m)), Estimate=coef(m), SE=fixest::se(m), N=nobs(m))
+}))
+science_codes_v2 <- c("DN", "EP", "NN", "NF", "NU")
+extension_loo_v2 <- bind_rows(lapply(0:1, function(o) bind_rows(lapply(science_codes_v2, function(a) {
+  m <- rep_fit_v2(filter(extension_complete_v2, oversight==o, agencycode!=a),
+    c(extension_rhs_v2$Science, extension_controls_v2), c("agencyid", "presid", "majortopic", "comid"))
+  data.frame(Hearing=ifelse(o==0, "Legislative", "Oversight"), Omitted=a,
+    Estimate=unname(coef(m)["OPScience"]), SE=unname(fixest::se(m)["OPScience"]), N=nobs(m))
+}))))
+```
+
+Table \@ref(tab:extension-content) reports the joint and science models based on Equation \@ref(eq:content). The common samples hold 24,061 legislative and 19,508 oversight pairs. They are smaller than the replication samples of 30,117 and 27,401 pairs because agencies without an ideology score or a Selin score drop out.
+
+In legislative hearings the results support the analytical content hypothesis (H2). At the median agency the out-partisan gap is $-1.20$ (SE 0.19). The interaction between out-partisanship and presidential alignment is $-0.45$ (SE 0.14). In an agency one unit closer to the president the gap is therefore about $-1.65$, which is more than a third larger. Out-partisans lose more of the analysis that copartisans receive when the witness comes from an agency that shares the president's leanings. In oversight hearings the same interaction is $-0.07$ (SE 0.16) and indistinguishable from zero.
+
+The agency independence hypothesis (H3) receives support in oversight hearings only. There the interaction with decision-maker independence is $0.59$ (SE 0.24). At the mean of both Selin scores [@selin2015] the oversight gap is about $-1.00$ (SE 0.25). In an agency one standard deviation more independent the gap is about $-0.42$, which is less than half as large. This pattern fits the account in which the gap reflects the president's control over who leads an agency. In legislative hearings the same interaction is $0.26$ (SE 0.21) and not significant at the 5 percent level. Policy-decision independence shows no clear pattern in the joint models. Its interactions are $-0.16$ (SE 0.21) in legislative and $0.04$ (SE 0.22) in oversight hearings. When I enter each Selin interaction alone [@selin2015], the decision-maker interaction in oversight hearings stays at $0.61$ (SE 0.20; Table \@ref(tab:extension-separate)). The policy-decision interaction rises to $0.35$ (SE 0.19), likely because the two Selin scores are correlated.
+
+The scientific agencies hypothesis (H4) receives little support. In legislative hearings the triple interaction is $-0.33$ (SE 0.41). In oversight hearings it is $-1.00$ (SE 0.50). To check whether one agency drives this estimate, I drop each science agency in turn (Table \@ref(tab:extension-loo)). Without the Environmental Protection Agency the oversight estimate becomes $0.82$ (SE 1.60). Dropping any of the other four agencies leaves it between $-1.16$ and $-0.92$. The oversight result therefore reflects the Environmental Protection Agency and not science agencies as a group.
+
+These estimates describe conditional associations among observed exchanges. Agency ideology and agency independence are not assigned at random. Agencies with independent leaders may also differ in their missions and in the committees that oversee them.
+
+## Network Model {.unnumbered}
+
+For the questioning ties hypothesis (H1), I specify a bipartite exponential random graph model (ERGM) [@cranmer2011; @wang2009]. The model treats the whole network as one outcome. It can therefore account for the dependence among ties that the closure results suggest. The ERGM gives the probability of the observed network in Congress $t$ as
+
+\begin{equation}
+\begin{aligned}
+\Pr(Y_t=y \mid \mathbf{X}_t,\mathcal{R}_t)
+=\frac{\exp\{\boldsymbol{\theta}^{\top} g(y,\mathbf{X}_t)\}}
+{\kappa(\boldsymbol{\theta},\mathbf{X}_t,\mathcal{R}_t)}
+\end{aligned}
+(\#eq:ergm)
+\end{equation}
+
+where $Y_t$ is the random member--agency network and $y$ is one possible realization of it. The matrix $\mathbf{X}_t$ holds the member and agency covariates. The set $\mathcal{R}_t$ holds the member--agency pairs with a verified opportunity to meet. The vector $g(y,\mathbf{X}_t)$ holds the network statistics and $\boldsymbol{\theta}$ holds their coefficients. The normalizing constant $\kappa(\boldsymbol{\theta},\mathbf{X}_t,\mathcal{R}_t)$ sums the numerator over all networks allowed by $\mathcal{R}_t$. The statistics are an edge count and a geometrically weighted degree term for each mode. Member party and agency ideology enter as covariates for their modes. Alignment $C_{ma}$ enters as a dyadic covariate. The questioning ties hypothesis (H1) predicts a positive coefficient on $C_{ma}$ in Equation \@ref(eq:ergm). The rival account of @clinton2014 predicts a negative one. I include no triangle term because triangles cannot form in a bipartite network.
+
+The opportunity set is the main data task. Pairs outside it are structural zeros and not observed absences. I will build it in two steps. First, the House committee assignment data of @stewart2017 list the members of each committee in each Congress. Second, the committee of each hearing in the replication data shows which agencies appeared before that committee. A member is eligible to question an agency if the member sat on a committee that heard the agency's witnesses in that Congress. I fit no ERGM until I verify this set.
+
+The 113th Congress remains the main case because it is the most recent Congress in the data and pairs divided government with frequent oversight. I will fit the same specification to each Congress from the 105th to the 113th. A plot of the alignment coefficient by Congress will show whether the result is specific to one Congress. Separate networks for each Congress are common in legislative network research [@fowler2006; @kirkland2014]. Choosing the last Congress of each administration would be a weaker design. The 106th and 110th Congresses had divided government, and so did the 113th. That choice would hold divided government constant and could not separate presidential alignment from House control. As a robustness check, I will fit a temporal ERGM (TERGM) to all nine Congresses with the `btergm` package [@leifeld2018]. Appendix D lists the planned diagnostics. It also describes a comparison of the 111th and 112th Congresses that separates presidential alignment from House control.
+
+
+```{r ergm, eval=FALSE}
+# specification only; verified rosters and structural zeros required before fitting
+ergm_congresses <- 105:113
+ergm_focal <- 113L
+ergm_fits_v2 <- list()
+for (congress_id in ergm_congresses) {
+  # opportunity_networks_v2 must contain eligible vertices and audited constraints
+  net <- opportunity_networks_v2[[as.character(congress_id)]]
+  stopifnot(network::get.network.attribute(net, "bipartite") > 0)
+  alignment <- alignment_matrices_v2[[as.character(congress_id)]]
+  ergm_fits_v2[[as.character(congress_id)]] <- ergm::ergm(
+    net ~ edges + gwb1degree(.5, fixed = TRUE) + gwb2degree(.5, fixed = TRUE) +
+      b1cov("party") + b2cov("ideology") + edgecov(alignment),
+    constraints = opportunity_constraints_v2[[as.character(congress_id)]],
+    control = ergm::control.ergm(seed = analysis_seed))
+}
+# diagnose mcmc and gof before interpreting any coefficient
+```
+
+# Discussion {.unnumbered}
+
+The descriptive results and the estimates speak to different stages of information sharing. Committees appear to shape who meets whom. Partisan alignment with the president is associated with what witnesses say once they meet. The extension estimates add that this association varies with agency ideology in legislative hearings and with agency independence in oversight hearings. The questioning ties hypothesis (H1) asks whether agency alignment also shapes the first stage. The answer requires the opportunity set that this draft does not yet have.
+
+## Intergovernmental Context {.unnumbered}
+
+Hearings also bring in witnesses from outside the federal government. Congress often delegates the implementation of federal programs to state governments [@clouser2015; @clouser2016]. Much of this delegation now runs through federal agencies, which shape state roles through waivers and administrative rules [@thompson2013; @metzger2008]. Federal agencies also rely on state and local partners to deliver programs [@clouser2025]. State and local officials can therefore supply information about implementation that federal agencies hold only in part. When state or local officials also testify, members can compare a federal witness's answers with those of officials who run the program. Figure \@ref(fig:hearing-context) shows how often this occurs. It counts unique hearings in the matched sample and marks hearings with at least one state or local government witness.
+
+```{r hearing-context, eval=TRUE, fig.cap="State and local witnesses in hearings across Congresses 105--113th", fig.height=6.5, fig.note="Each hearing counts once. Presence means at least one state or local government witness; co-attendance does not establish cooperation. Labels report the percentage of hearings with such a witness."}
+# deduplicate hearings before counting; co-attendance is not cooperation
+hearing_context_v2 <- dyad_b_raw %>% group_by(hearingid) %>% summarise(
+  congress = first(congress), committee_name = first(committee_name),
+  StateLocal = any(n_statelocgov > 0, na.rm = TRUE), .groups = "drop")
+hearing_by_congress_v2 <- hearing_context_v2 %>% count(congress, StateLocal) %>% group_by(congress) %>%
+  mutate(Share = n / sum(n)) %>% ungroup()
+hearing_by_committee_v2 <- hearing_context_v2 %>% count(committee_name, StateLocal) %>% group_by(committee_name) %>%
+  mutate(Total = sum(n), Share = n / Total) %>% ungroup() %>%
+  filter(committee_name %in% (hearing_context_v2 %>% count(committee_name, sort = TRUE) %>% slice_head(n = 10) %>% pull(committee_name)))
+context_colors_v2 <- c("FALSE" = "gray75", "TRUE" = pal_v2[1])
+context_a_v2 <- ggplot(hearing_by_congress_v2, aes(factor(congress), n, fill = StateLocal)) + geom_col() +
+  scale_fill_manual(values = context_colors_v2, labels = c("Absent", "Present"), name = "State/local witness") +
+  geom_text(data = filter(hearing_by_congress_v2, StateLocal), aes(label = paste0(round(100 * Share), "%")), position = position_stack(vjust = .5), size = 2.7, angle = 90) +
+  labs(title = "(a) Hearings by Congress", subtitle = "Labels: share with state/local witnesses", x = "Congress", y = "Unique hearings")
+context_b_v2 <- ggplot(hearing_by_committee_v2, aes(reorder(sub("^Committee on (the )?", "", committee_name), Total), n, fill = StateLocal)) +
+  geom_col() + coord_flip() + scale_fill_manual(values = context_colors_v2, labels = c("Absent", "Present"), name = "State/local witness") +
+  labs(title = "(b) Leading parent committees", x = NULL, y = "Unique hearings")
+context_a_v2 + context_b_v2 + patchwork::plot_layout(widths = c(1, 1.4), guides = "collect") &
+  theme(text = element_text(size = 10), legend.position = "bottom")
+```
+
+Of the `r format(nrow(hearing_context_v2), big.mark = ",")` hearings, `r round(100 * mean(hearing_context_v2$StateLocal))` percent include a state or local witness. The share falls from `r with(filter(hearing_by_congress_v2, StateLocal, congress == 105), round(100 * Share))` percent in the 105th Congress to `r with(filter(hearing_by_congress_v2, StateLocal, congress == 113), round(100 * Share))` percent in the 113th. Committees differ as well, probably because their jurisdictions rely on state implementation to different degrees. In the Resources Committee `r with(filter(hearing_by_committee_v2, StateLocal, committee_name == "Committee on Resources"), round(100 * Share))` percent of hearings include a state or local witness. The share is `r with(filter(hearing_by_committee_v2, StateLocal, committee_name == "Committee on Transportation and Infrastructure"), round(100 * Share))` percent in Transportation and Infrastructure. Armed Services hearings almost never include one (`r with(filter(hearing_by_committee_v2, StateLocal, committee_name == "Committee on Armed Services"), round(100 * Share))` percent).
+
+```{r state-local-gap, fig.cap="Conditional out-partisan gap by state/local witness presence", fig.height=4.5, fig.note="Points show the out-partisan minus copartisan analytical-score contrast; bars show 95 percent hearing-clustered t intervals. Separate legislative and oversight models interact presidential out-partisanship with the presence of any state or local witness. They include all original member and hearing controls along with question controls. They also include agency and committee fixed effects along with issue and president fixed effects. State/local presence is measured once per hearing. These are conditional associations among observed exchanges; co-attendance is not cooperation."}
+# estimate hearing-context differences in the pair-level analytical score
+context_data_v2 <- rep_b %>% left_join(select(hearing_context_v2, hearingid, StateLocal), by="hearingid") %>%
+  mutate(StateLocal=as.integer(StateLocal), OStateLocal=pres_outparty * StateLocal)
+context_models_v2 <- lapply(0:1, function(o) rep_fit_v2(filter(context_data_v2, oversight==o),
+  c("pres_outparty", "StateLocal", "OStateLocal", extension_controls_v2), c("agencyid", "presid", "majortopic", "comid")))
+context_gaps_v2 <- bind_rows(lapply(1:2, function(j) {
+  m <- context_models_v2[[j]]; b <- coef(m); V <- vcov(m)
+  bind_rows(lapply(0:1, function(z) {
+    L <- setNames(rep(0, length(b)), names(b)); L["pres_outparty"] <- 1; L["OStateLocal"] <- z
+    estimate <- sum(L*b); se <- sqrt(as.numeric(t(L) %*% V %*% L))
+    critical <- qt(.975, df=fixest::degrees_freedom(m, "t"))
+    data.frame(Hearing=c("Legislative", "Oversight")[j], Presence=c("Absent", "Present")[z+1],
+      Estimate=estimate, SE=se, Lower=estimate-critical*se, Upper=estimate+critical*se, N=nobs(m))
+  }))
+}))
+ggplot(context_gaps_v2, aes(Presence, Estimate, color=Hearing)) +
+  geom_hline(yintercept=0, linetype=2, color="gray60") +
+  geom_pointrange(aes(ymin=Lower, ymax=Upper), position=position_dodge(width=.35)) +
+  scale_color_manual(values=pal_v2[1:2]) + labs(x="State/local witness in hearing", y="Out-partisan minus copartisan analytical score", color="Hearing type") +
+  theme(legend.position="bottom")
+```
+
+Figure \@ref(fig:state-local-gap) asks whether the out-partisan gap differs in hearings with a state or local witness. Each point is the out-partisan minus copartisan contrast from a model that adds the presence indicator and its interaction with out-partisanship. In legislative hearings the gap is nearly the same with and without such a witness ($-1.30$ and $-1.27$). The interaction is $-0.03$ (SE 0.28). In oversight hearings the gap is $-1.56$ (SE 0.13) without a state or local witness and $-0.77$ (SE 0.34) with one. The difference of $0.79$ (SE 0.36) is significant at the 5 percent level. Out-partisans thus receive relatively more analytical content in oversight hearings that include state or local officials. One reading is that federal witnesses answer more fully when officials who run the program can contest their claims. Another is that committees invite state and local witnesses to hearings on less partisan topics. These models use the full replication samples and describe conditional associations.
+
+Co-attendance is not cooperation. The figures show only who testified in the same hearing. They do not show whether state and local officials changed what federal witnesses said.
+
+## Identification and Limits {.unnumbered}
+
+This study has four limits. First, observed questioning does not reveal who sought an invitation or who declined one. It also says nothing about whether members used the information. Second, the network has no opportunity set yet. Density and the closure reference use observed members and agencies only. Third, the extension models estimate conditional associations. Agency ideology and agency independence are not assigned at random. The common samples also drop about a fifth of legislative pairs and nearly three in ten oversight pairs. A network model accounts for dependence among ties but does not identify a causal effect of alignment. I also derive community membership from the outcome network.
+
+Fourth, the institutional measures are static. The Richardson score comes from a 2014 survey [@richardson2018]. The Selin scores come from the statutes in force in 2013 [@selin2015]. Many agencies changed between 1997 and 2014. The Acs estimates vary by administration but cover only 11 agency codes [@acs2025]. Ideology is missing for 12 of 64 agency codes. The Table B8 sensitivity shows that this missingness could change a published result.
+
+# Conclusion {.unnumbered}
+
+I ask whether agency alignment shapes which members question which agencies and what they learn. The House questioning network of the 113th Congress appears to follow committee jurisdiction in part (adjusted Rand index `r sprintf("%.2f", community_agreement_v2$ARI[3])`). A few cabinet departments reach many members. Pairs of members share two agencies about three and a half times as often as a random reference predicts. Communities of members partly follow committees and mix the two parties. The partisan gaps that @ban2026 find therefore arise inside bipartisan audiences that committees assemble.
+
+My replication matches the four published tables at their reported precision. The Table B8 result holds in legislative hearings when I drop agencies without an ideology score. In oversight hearings it falls from $-0.58$ to $-0.29$ and is no longer significant at the 5 percent level. The continuous measures show where the gap varies. In legislative hearings the out-partisan gap widens by about 0.45 points for each unit the agency moves toward the president on the Richardson scale [@richardson2018]. In oversight hearings it narrows by about 0.59 points for each standard deviation of decision-maker independence [@selin2015]. It is also about half as large in oversight hearings with a state or local witness. The science-agency pattern rests on the Environmental Protection Agency.
+
+These results broaden @ban2026 in three ways. First, the network view shows who meets whom before any testimony begins. Second, a continuous measure of agency ideology replaces the median split and shows that the gap varies across the full range of agencies. Third, agency independence links a witness to the president through the agency's structure and not its views. The gap may thus reflect the policy views of agencies in legislative hearings and the president's hold on their leaders in oversight hearings.
+
+Future work can extend these results in four ways. The bipartite ERGM can test whether aligned members question an agency more often once committee rosters define the opportunity set [@stewart2017]. A comparison of the 111th and 112th Congresses can separate presidential alignment from House control because the House majority flipped under the same president. The dynamic estimates of @acs2025 can show whether the gap moves as agencies shift across administrations once they cover more agency codes. Studies of state and local witnesses can test whether officials who run programs change what federal witnesses tell members.
+
+
+\newpage
+
+# References {.unnumbered}
+
+
+<div id="refs"></div>
+
+
+\newpage 
+
+# Appendix A: Replication {.unnumbered}
+
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{A.\arabic{table}}\renewcommand{\theHtable}{A.\arabic{table}}
+\renewcommand{\thefigure}{A.\arabic{figure}}\renewcommand{\theHfigure}{A.\arabic{figure}}
+
+This appendix reproduces the four published results I use. I translate the four Stata scripts of @ban2026 to R with `fixest`. The scripts are `TABLE 2.do` and `TABLE A8.do` along with `TABLE 3.do` and `TABLE 4.do`. The translation keeps the one absorbed fixed effect of Stata's `areg` and enters the others as explicit factors. It retains singleton observations. Finite-sample corrections count the absorbed fixed effects as `areg` does. Standard errors cluster by hearing except in Table 4, which clusters by committee. Every coefficient I checked matches the published tables at reported precision. The standard errors and sample sizes also match, as do the adjusted $R^2$ values. Tables report coefficients with clustered standard errors in parentheses. They omit absorbed terms.
+
+## A.1 Table 2 {.unnumbered}
+
+Table \@ref(tab:rep-table2) reproduces Table 2 for bureaucratic witnesses. Columns 1--3 use legislative hearings and columns 4--6 use oversight hearings. Columns 3 and 6 replace agency and committee fixed effects with witness-hearing fixed effects. The appointment indicator follows the script. It codes presidential appointees who require Senate confirmation (PAS) as 1. It sets the Department of Defense to missing before applying the Defense appointee indicator (`dod_pol`). The script also logs question word count.
+
+```{r rep-table2, eval=TRUE, results='asis'}
+# six original specifications; witness fe retain singleton observations
+rep_table2_models <- unlist(lapply(0:1, function(o) {
+  d <- filter(rep_b, oversight == o)
+  r <- c(inst_v2[1], "polappt2", "polappt_presoutparty", inst_v2[-1], committee_v2)
+  list(rep_fit_v2(d, r, c("agencyid", "presid", "majortopic", "comid")),
+    rep_fit_v2(d, c(r, question_v2), c("agencyid", "presid", "majortopic", "comid")),
+    rep_fit_v2(d, c(r, question_v2), c("witness_id", "presid", "majortopic")))
+}), recursive = FALSE)
+rep_table2_table <- rep_display_v2(rep_table2_models)
+table_note_v2(rep_table_v2(rep_table2_table, "Published Table 2 replication: bureaucratic witnesses", label = "rep-table2"), rep_note_v2)
+```
+
+## A.2 Table B8 {.unnumbered}
+
+Table \@ref(tab:rep-b8) reproduces "Incorporating Agency Ideology: President Aligned vs. Not-Aligned Agencies" (Table B8) in the appendix of @ban2026. It replaces the appointment interaction in the second Table 2 specification with the president-aligned indicator and its interaction with out-partisanship.
+
+```{r rep-b8, eval=TRUE, results='asis'}
+# missing ideology remains nonliberal, exactly as in table a8.do
+b8_rhs_v2 <- c(inst_v2[1], "polappt2", "pres_align", "outparty_aligned", inst_v2[-1], committee_v2, question_v2)
+rep_b8_models <- lapply(0:1, function(o) rep_fit_v2(filter(rep_b, oversight == o), b8_rhs_v2,
+  c("agencyid", "presid", "majortopic", "comid")))
+rep_b8_table <- rep_display_v2(rep_b8_models, c("pres_outparty", "polappt2", "pres_align", "outparty_aligned"), controls=TRUE,
+  means=sapply(0:1, function(o) mean(rep_b$ascore[rep_b$oversight==o], na.rm=TRUE)))
+# authors' original note first, then my replication notes
+table_note_v2(rep_table_v2(rep_b8_table, "Published B8 replication: presidential agency alignment", label = "rep-b8"), paste(
+  "$^{*}p<0.05$, $^{**}p<0.01$, $^{***}p<0.001$. Standard errors are clustered at the hearing-level. In all regressions, issue-, committee-, and president-fixed effects and other control variables are included.",
+  "Standard errors are in parentheses; FE = fixed effect. Outcome means use the full hearing-type sample as in the original script. Richardson et al. (2018) provide survey-based ideology: negative = liberal and positive = conservative.",
+  "Agencies with a Richardson score below $-0.1256831$ are liberal.",
+  "Rows whose agency lacks a score stay in the nonliberal group as in TABLE A8.do.",
+  "The interaction is $-0.612$ (SE 0.207) in legislative hearings and $-0.582$ (SE 0.222) in oversight hearings."))
+```
+
+## A.3 Table 3 {.unnumbered}
+
+Table \@ref(tab:rep-table3) reproduces Table 3 for nonbureaucratic witnesses. The script records whether a bureaucrat appeared in the hearing before it drops bureaucratic rows. It leaves question word count unlogged. I follow both choices. The table shows only the out-partisan coefficient.
+
+```{r rep-table3, eval=TRUE, results='asis'}
+# nonbureaucratic sample; bureaucrat presence calculated before exclusion
+rep_table3_models <- unlist(lapply(0:1, function(o) {
+  d <- filter(rep_nonb, oversight == o); r <- c(inst_v2, committee_v2, question_v2)
+  list(rep_fit_v2(d, r, c("comid", "presid", "majortopic", "typeid")),
+    rep_fit_v2(d, r, c("witness_id", "presid", "majortopic")),
+    rep_fit_v2(filter(d, bureauappear == 1), r, c("witness_id", "presid", "majortopic")))
+}), recursive = FALSE)
+rep_table3_table <- rep_display_v2(rep_table3_models, "pres_outparty", kind="nonbureau",
+  means=unlist(lapply(0:1, function(o) c(rep(mean(rep_nonb$ascore[rep_nonb$oversight==o], na.rm=TRUE), 2),
+    mean(rep_nonb$ascore[rep_nonb$oversight==o & rep_nonb$bureauappear==1], na.rm=TRUE)))))
+table_note_v2(rep_table_v2(rep_table3_table, "Published Table 3 replication: nonbureaucratic witnesses", label = "rep-table3"), paste(rep_note_v2, "Columns 3 and 6 restrict the sample to hearings with at least one bureaucratic witness. All models include member and hearing controls along with question controls. Outcome means follow the original script and use the full stated hearing-type sample before exclusions for missing covariates."))
+```
+
+## A.4 Table 4 {.unnumbered}
+
+Table \@ref(tab:rep-table4) reproduces Table 4 at the hearing level. Its six outcomes are hearing totals of questions and analytical answers. Standard errors cluster by committee. The table shows only the divided-government coefficient.
+
+```{r rep-table4, eval=TRUE, results='asis'}
+# additive aggregate outcomes; committee-clustered uncertainty
+rep_table4_models <- lapply(c("tot_q", "tot_q_co", "tot_q_out", "tot_a", "tot_a_b", "tot_a_nb"), function(y)
+  rep_fit_v2(rep_aggregate, c("divided_house", "subcommittee", "bill", "numwitness", "oversight"),
+    c("comid", "presid", "majortopic"), outcome = y, cluster = "comid"))
+rep_table4_table <- rep_display_v2(rep_table4_models, "divided_house", kind="aggregate")
+names(rep_table4_table)[-1] <- c("(1) Total", "(2) Co-Partisan", "(3) Out-Partisan", "(4) Total", "(5) Bureaucrat", "(6) Nonbureaucrat")
+table_note_v2(rep_table_v2(rep_table4_table, "Published Table 4 replication: aggregate information acquisition", label = "rep-table4",
+  groups=c(" "=1, "No. Question--Answer Pair"=3, "Analytical Information"=3)),
+  "The unit of observation is hearing. Standard errors clustered at the committee level are in parentheses. Models also include indicators for oversight hearings and subcommittees along with referral hearings and the number of witnesses. The table omits them. FE = fixed effect. * p < 0.05, ** p < 0.01, *** p < 0.001.")
+```
+
+## A.5 Replication Checks and Missing-Ideology Sensitivity {.unnumbered}
+
+No numerical discrepancy remains at published precision. One coding choice in Table B8 affects the oversight estimate. The script codes agencies as liberal when the Richardson score is below $-0.1256831$ [@richardson2018]. It places agencies without a score in the nonliberal group. Table \@ref(tab:rep-b8-sensitivity) keeps the same cutoff and specification but restricts the sample to agencies with a score.
+
+```{r rep-b8-sensitivity, eval=TRUE, results='asis'}
+# observed richardson score only; retain original alignment cutoff
+rep_b8_sensitivity_models <- lapply(0:1, function(o) rep_fit_v2(filter(rep_b, oversight == o, !is.na(agency_ideo)),
+  b8_rhs_v2, c("agencyid", "presid", "majortopic", "comid")))
+rep_b8_sensitivity_table <- rep_display_v2(rep_b8_sensitivity_models, c("pres_outparty", "polappt2", "pres_align", "outparty_aligned"), controls=TRUE)
+# authors' original note first, then my sensitivity notes
+table_note_v2(rep_table_v2(rep_b8_sensitivity_table, "B8 sensitivity excluding missing agency ideology", label = "rep-b8-sensitivity"), paste(
+  "$^{*}p<0.05$, $^{**}p<0.01$, $^{***}p<0.001$. Standard errors are clustered at the hearing-level. In all regressions, issue-, committee-, and president-fixed effects and other control variables are included.",
+  "This table uses the specification and cutoff of Table \\ref{tab:rep-b8}.",
+  "The sample drops rows whose agency lacks a Richardson score. Richardson et al. (2018) measure survey-based agency ideology: negative = liberal and positive = conservative. Standard errors are in parentheses; FE = fixed effect.",
+  "The legislative sample falls to 27,194 rows and the oversight sample to 22,545 rows.",
+  "The legislative interaction stays at $-0.625$ (SE 0.214).",
+  "The oversight interaction falls to $-0.294$ (SE 0.241) and is not significant at the 5 percent level."))
+```
+
+# Appendix B: Data Construction and Measurement {.unnumbered}
+
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{B.\arabic{table}}\renewcommand{\theHtable}{B.\arabic{table}}
+\renewcommand{\thefigure}{B.\arabic{figure}}\renewcommand{\theHfigure}{B.\arabic{figure}}
+
+I measure agency attributes at the level of the agency code in @ban2026. The file \fname{additional-data/clean/agency_attributes.csv} has one row for each of the 64 codes. One script builds it from local raw files (\fname{additional-data/clean/clean_agency_attributes.R}). The replication data name each agency with its name in the records of the Office of Personnel Management (OPM). The script standardizes these names and matches them to agency names in the federal contract data of @fazekas2023. It requires an exact match after standardization and uses no fuzzy matching. It does not average scores across bureaus or weight them by pair rows. Missing or conflicting source values stay missing. The replication files of @ban2026 are unchanged.
+
+Table \@ref(tab:agency-audit) reports coverage for all 64 codes. The Richardson score covers 52 codes after the Defense rule [@richardson2018]. Each Selin dimension covers 53 [@selin2015]. The four-level leadership category comes from the agency types in the federal contract data of @fazekas2023. Following @dahlstrom2021, they order these types from most to least exposed to political control. The first two types are executive departments and distinct bureaus within those departments. The third covers independent administrations, which resemble departments in structure but sit outside the cabinet. The fourth covers independent commissions and independent regulatory commissions (IRCs). Members of commission boards often serve fixed terms with protection from removal [@selin2015]. The category covers 33 codes. It is not a binning of the Selin scores [@selin2015]. The file also keeps a binary rule that codes commissions as 1 and cabinet departments as 0. I do not use that rule here.
+
+The regulatory indicator covers 39 codes. It equals 1 when an agency name matches the name of an agency that issues federal rules. The coding first uses exact matches to agencies in the Acs data [@acs2025]. It then matches agencies that issued final rules in the *Federal Register* from 2004 to 2015 and uses fuzzy name matches for the rest. A few fuzzy matches may pair different agencies. I have not audited these matches, so I use the indicator only for description. It records a function and not statutory authority. Table \@ref(tab:regulatory-audit) crosses it with the leadership category. I code no service indicator. An agency without the regulatory flag is not necessarily a service agency. A later audit will code rulemaking and adjudication from the *Sourcebook of United States Executive Agencies*, which lists agencies with statutory adjudicatory authority and their rulemaking activity [@selin2018].
+
+Eleven codes have a direct parent-level match to the Acs estimates [@acs2025]. Table \@ref(tab:acs-selection) shows their share of pair rows. I must join the estimates by the actual administration and not by Congress alone. Cells without an agency--administration estimate stay missing. Some codes pool unusual units. The code for the National Aeronautics and Space Administration (NN) includes the Columbia Accident Investigation Board, for example.
+
+The Department of Defense code (DD) pools four OPM units. Their categories and scores do not agree. I leave these values missing and do not choose one unit. All attributes are static. I have not verified that each category applies to every hearing year from 1997 to 2014. Table \@ref(tab:science-support) counts pair rows by the science flag along with presidential copartisanship and hearing type. It shows the support available for the scientific agencies hypothesis (H4).
+
+```{r agency-audit-display, results='asis'}
+# report unique-agency coverage and source coding limits
+table_v2(attribute_coverage_v2, "Agency attribute coverage: all observed agency codes", 0, label = "agency-audit")
+table_v2(rename(regulatory_audit_v2, `Leadership category`=l1_four_level, Regulatory=regulatory, Agencies=n), "Leadership category and regulatory coding (unaudited)", 0, label = "regulatory-audit")
+table_v2(acs_selection_v2, "Direct Acs parent-key coverage in pair rows", 0, label = "acs-selection")
+table_v2(rename(science_support_v2, `Science agency`=science_flag, `Presidential copartisan`=pres_party, Oversight=oversight), "Exploratory science support by presidential copartisanship and hearing type", 0, label = "science-support")
+```
+
+# Appendix C: Additional Network Descriptions {.unnumbered}
+
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{C.\arabic{table}}\renewcommand{\theHtable}{C.\arabic{table}}
+\renewcommand{\thefigure}{C.\arabic{figure}}\renewcommand{\theHfigure}{C.\arabic{figure}}
+
+Table \@ref(tab:closure-congress) repeats the closure measures for each Congress. Coverage varies across Congresses, so the comparison is descriptive. Table \@ref(tab:community-algorithms) reports modularity for the Louvain and Walktrap partitions of the same projection. Table \@ref(tab:community-agreement) compares the Louvain partition with the Walktrap partition and with party and modal committee.
+
+```{r closure-congress, results='asis'}
+# coverage varies across congresses; this is a descriptive comparison
+closure_congress_v2 <- bind_rows(lapply(sort(unique(dyad_b_raw$congress)), function(t) {
+  d <- dyad_b_raw %>% filter(congress == t) %>% distinct(asker, agencycode)
+  B <- 1L * (table(d$asker, d$agencycode) > 0)
+  z <- closure_closure(B)
+  data.frame(Congress = t, Members = nrow(B), Agencies = ncol(B),
+    Global = z[1], MeanLocal = z[2], FourCycles = z[3])
+}))
+table_v2(closure_congress_v2, "Closure across observed Congress networks", label = "closure-congress")
+table_v2(hw_modularity, "Community algorithms on the identical weighted member projection", label = "community-algorithms")
+table_v2(community_agreement_v2, "Louvain agreement with alternative partition and member attributes", label = "community-agreement")
+```
+
+Figure \@ref(fig:title-buckets) classifies hearing titles with the seven verb categories developed by Professor Clouser McCann (working paper). The categories describe which government does what under intergovernmental delegation [@clousermccann2026]. I keep the verb lists unchanged and apply them to hearing titles. Titles are short and often lack a verb. I match each listed word as a literal whole word or phrase in the lowercase title. I do not lemmatize titles or identify grammatical subjects. Thus "regulate" matches the regulatory category but "regulation" does not. A title can match several categories. Where a figure needs one category per title, the first match wins. The order runs from enforcement through regulatory and funding to oversight. Consultation and programmatic follow, and operations comes last. Titles with no listed word fall into Other.
+
+Each panel uses the leading agency of one Louvain community from Table \@ref(tab:community-composition). A hearing joins a panel if a witness from that agency appeared. Panels draw on all nine Congresses. A hearing counts once in each panel but can appear in several panels.
+
+```{r title-buckets, eval=TRUE, fig.cap="Hearing title categories by community leading agency", fig.height=6, fig.note=paste("Categories come from the seven verb categories developed by Professor Clouser McCann (working paper). Categories describe literal hearing-title words: enforcement = sanctions and compliance; regulatory = permissions and rules; funding = fiscal transfers; oversight = monitoring and evaluation; consultation = coordination and exchange; programmatic = services and information; operations = administration and implementation. Other means no dictionary match. First-match order follows the listed categories; no lemmatization or testimony coding is used. Panels overlap.", agency_note_v2(community_composition_v2$TopAgency))}
+# hearing title wording; literal dictionary phrases, first match in lab precedence
+# no lemmatization or testimony coding; unmatched and multiple matches reported below
+profile_verbs <- list(
+  Enforcement = 'enforce, penalize, prosecute, prohibit, fine, suspend, sanction, terminate, deport, arrest, compel, levy, comply, order, withhold, adjudicate, bar',
+  Regulatory = 'approve, certify, license, prescribe, issue, designate, specify, deny, revoke, promulgate, regulate, classify, authorize, permit, waive, amend, modify, repeal, rescind, adopt, reject, exempt, limit, restrict, impose, propose, control, draft, formulate, allow, set, enact, mandate, preempt, recognize, abolish, accredit',
+  Funding = 'pay, grant, allocate, appropriate, fund, award, receive, reimburse, distribute, compensate, transfer, expend, apportion, disburse, obligate, obtain, allot, reallot, guarantee, insure',
+  Oversight = 'monitor, audit, evaluate, review, investigate, ensure, determine, assess, verify, inspect, examine, oversee, observe, supervise, study, analyze, attest, require, condition',
+  Consultation = 'consult, confer, coordinate, cooperate, collaborate, consider, negotiate, meet, engage, partner, agree, encourage, seek, request, facilitate, participate, share, exchange, convene, assemble',
+  Programmatic = 'provide, report, submit, notify, develop, serve, publish, disclose, inform, describe, identify, prepare, collect, gather, compile, disseminate, transmit, communicate, train, educate, promote, support, assist, advise, recommend, create, design, define, instruct, furnish, file, pilot, test, demonstrate, guide',
+  Operations = 'administer, manage, operate, maintain, conduct, establish, apply, carry out, implement, perform, execute, enter into, use, make, direct, delegate, assign, undertake, contract, run, revise, accept, appoint, exercise, retain, plan, expand, decide, vest, entrust, acquire, construct, procure, convey, hire, employ, devolve') 
+
+profile_verbs <- lapply(profile_verbs, function(x) strsplit(x, ", ", fixed = TRUE)[[1]])
+title_hearings_v2 <- dyad_b_raw %>% filter(!is.na(title), nzchar(trimws(title))) %>% distinct(hearingid, title)
+stopifnot(!anyDuplicated(title_hearings_v2$hearingid))
+title_match_v2 <- vapply(profile_verbs, function(words) {
+  pattern <- paste0("\\b(", paste(words, collapse = "|"), ")\\b")
+  grepl(pattern, tolower(title_hearings_v2$title), perl = TRUE)
+}, logical(nrow(title_hearings_v2)))
+title_hearings_v2$Matches <- rowSums(title_match_v2)
+title_hearings_v2$Bucket <- ifelse(title_hearings_v2$Matches == 0, "Other",
+  colnames(title_match_v2)[max.col(title_match_v2, ties.method = "first")])
+title_quality_v2 <- data.frame(TitledHearings = nrow(title_hearings_v2),
+  MissingTitleHearings = n_distinct(dyad_b_raw$hearingid) - nrow(title_hearings_v2),
+  UnmatchedShare = mean(title_hearings_v2$Matches == 0), MultiLabelShare = mean(title_hearings_v2$Matches > 1))
+# panel membership uses leading agency; a hearing can appear in several panels
+title_panels_v2 <- dyad_b_raw %>% distinct(hearingid, agencycode) %>%
+  inner_join(select(community_composition_v2, Community, agencycode = TopAgency), by = "agencycode") %>%
+  inner_join(title_hearings_v2, by = "hearingid") %>% distinct(Community, agencycode, hearingid, .keep_all = TRUE)
+title_panel_quality_v2 <- title_panels_v2 %>% group_by(Community, agencycode) %>%
+  summarise(TitledHearings = n(), UnmatchedShare = mean(Matches == 0),
+    MultiLabelShare = mean(Matches > 1), .groups = "drop")
+title_buckets_v2 <- title_panels_v2 %>% mutate(agencycode = factor(agencycode, levels = community_composition_v2$TopAgency),
+  Bucket = factor(Bucket, levels = rev(c(names(profile_verbs), "Other")))) %>% count(Community, agencycode, Bucket) %>% group_by(Community, agencycode) %>%
+  mutate(Share = n / sum(n)) %>% ungroup()
+title_plot_v2 <- ggplot(title_buckets_v2, aes(Share, Bucket, fill = Bucket)) + geom_col() +
+  facet_wrap(~ agencycode, ncol = 3, drop = FALSE) + scale_x_continuous(labels = function(x) paste0(round(100*x), "%")) +
+  scale_fill_manual(values = setNames(c(pal_v2, "gray75"), c(names(profile_verbs), "Other"))) +
+  labs(x = "Share of titled hearings (first dictionary match)", y = NULL) +
+  theme(text = element_text(size = 10), legend.position = "none")
+title_plot_v2
+```
+
+```{r title-quality, results='asis'}
+# report unmatched and ambiguous title classifications
+table_v2(title_quality_v2, "Title dictionary coverage and ambiguity", label = "title-quality")
+table_v2(rename(title_panel_quality_v2, Agency=agencycode), "Title dictionary coverage by community leading agency", label = "title-panel-quality")
+```
+
+Most titles match no category. Of the `r format(title_quality_v2$TitledHearings, big.mark = ",")` hearings with a title, `r sprintf("%.1f", 100 * title_quality_v2$UnmatchedShare)` percent fall into Other. Another `r sprintf("%.1f", 100 * title_quality_v2$MultiLabelShare)` percent match more than one category. Tables \@ref(tab:title-quality) and \@ref(tab:title-panel-quality) report these shares. The data also include `r title_quality_v2$MissingTitleHearings` hearings without a title. The measure describes the wording of hearing titles. It says nothing about what witnesses said or what agencies are authorized to do. Any substantive claim needs a validation sample of titles.
+
+# Appendix D: Inferential Diagnostics {.unnumbered}
+
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{D.\arabic{table}}\renewcommand{\theHtable}{D.\arabic{table}}
+\renewcommand{\thefigure}{D.\arabic{figure}}\renewcommand{\theHfigure}{D.\arabic{figure}}
+
+This appendix reports checks on the content models. It also lists the planned network diagnostics and robustness designs, since the ERGM remains unfitted.
+
+For the ERGM, I will first verify the opportunity set. Each observed tie must fall inside it, and eligible members without ties stay in the network as isolates. I will then inspect Markov chain Monte Carlo (MCMC) diagnostics for each fit. Goodness of fit compares simulated networks with the observed degree distributions and four-cycles. A coefficient plot will show the alignment estimate with its interval for each Congress from the 105th to the 113th. The TERGM in `btergm` will pool the nine Congresses as a robustness check [@leifeld2018]. Its bootstrapped pseudolikelihood intervals need care in interpretation.
+
+A second planned robustness design compares the 111th Congress (2009--2010) with the 112th (2011--2012). Both served under President Obama, so the president and the agencies stay the same. The House majority switched from Democrats to Republicans after the 2010 election. Each agency's alignment with the president therefore stays fixed while its alignment with the majority party reverses. A change in the alignment coefficient between the two Congresses would point to House control rather than the president. The two networks are also similar in size. They have 422 and 421 members with 1,076 and 1,091 hearings. The Departments of Defense, the Treasury and Health and Human Services reach the most members in both.
+
+For the content models, Table \@ref(tab:extension-separate) enters alignment and each Selin interaction separately [@selin2015]. All columns within a hearing type use the same rows as Table \@ref(tab:extension-content). Differences across columns therefore do not reflect changes in the sample. Relative to the replication samples, the common samples lose 6,056 legislative and 7,893 oversight pairs because the Richardson score [@richardson2018] or a Selin score [@selin2015] is missing. Table \@ref(tab:science-support) reports support in each cell of the science flag and copartisanship by hearing type. Table \@ref(tab:extension-loo) drops each science agency in turn to check whether one agency drives the triple interaction. Dropping the Environmental Protection Agency reverses the sign of the oversight estimate and more than triples its standard error. Dropping any other science agency leaves the estimate between $-1.16$ and $-0.92$.
+
+
+```{r extension-sensitivity, results='asis'}
+# separate moderators on the same complete sample as table 4
+table_note_v2(rep_table_v2(rep_display_v2(extension_models_v2[c(1,2,3,6,7,8)],
+  c("pres_outparty", "P", "OP", "OS1", "OS2"), controls=TRUE),
+  "Alignment and separate independence interactions on common samples", "extension-separate"),
+  paste(rep_note_v2, "Columns 1 and 4 include alignment only; columns 2 and 5 add decision-maker independence; columns 3 and 6 add policy-decision independence. Samples and controls match Table \\ref{tab:extension-content}, and so does the scaling."))
+table_note_v2(table_v2(extension_loo_v2, "Leave-one-science-agency-out sensitivity of the triple interaction", label="extension-loo"),
+  paste("Each row re-estimates the exploratory specification after omitting the named science agency. Estimate and SE (standard error) refer to out-partisanship x continuous presidential alignment x science status. Standard errors cluster by hearing. Omitting the Environmental Protection Agency changes the oversight triple interaction from negative to positive and increases its standard error. These are descriptive conditional associations.", agency_note_v2(science_codes_v2)))
+```
+
+
+# Appendix E: Reproducibility and AI Assistance {.unnumbered}
+
+\setcounter{table}{0}\setcounter{figure}{0}
+\renewcommand{\thetable}{E.\arabic{table}}\renewcommand{\theHtable}{E.\arabic{table}}
+\renewcommand{\thefigure}{E.\arabic{figure}}\renewcommand{\theHfigure}{E.\arabic{figure}}
+
+The R Markdown file runs from the project directory with the replication data in `bureaucrats_jop/`. It downloads nothing when it knits. Seed 508 fixes the Louvain partition and the network layout along with the closure reference draws. The community results depend on igraph 2.3.3. I tested the replication with fixest 0.14.2. [My GitHub repository for this project](https://github.com/jodypark/plsc508_political_networks/tree/main/replication-extension) holds the code and the additional agency data.
+
+I orchestrated the following tasks in one multi-agent environment using different AI models for research support and coding. I also used them for grammar checks and rubric-based evaluation. 
+
+- Codex GPT-6-Astra set up the document layout and the analysis contracts and built the agency crosswalk from my sample code. It also reviewed the code against the original Stata scripts.
+- Codex GPT-6.1-Sol wrote and tested the R chunks for the network displays and the replication tables based on my analysis design.
+- Claude Opus 5.5 reviewed the numbers in each interpretation against the code output. It also proofread my writing and checked the \LaTeX output.
+
+I directed each task and checked the final outputs against the underlying sources.
