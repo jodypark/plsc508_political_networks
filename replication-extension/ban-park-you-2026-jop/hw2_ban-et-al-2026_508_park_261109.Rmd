@@ -1,0 +1,869 @@
+---
+title: |
+  \large \textbf{PLSC 508: Homework 2} 
+subtitle: |
+ CUG, QAP, ERGM, \& Latent Space Models \vspace{0.2cm}
+author: "Jody Park"
+date: "2026-11-10"
+output:
+  bookdown::pdf_document2:
+    toc: false
+    number_sections: false
+    latex_engine: xelatex
+    fig_crop: false
+colorlinks: true
+urlcolor: blue
+linkcolor: blue
+fontsize: 11pt
+bibliography: "references.bib"
+csl: "apanodoi.csl"
+link-citations: true
+reference-section-title: References
+header-includes:
+  - \usepackage[capposition=top]{floatrow}
+  - \usepackage{placeins}   
+  - \usepackage{dcolumn}
+  - \usepackage{booktabs}
+  - \usepackage{siunitx}
+  - \usepackage{amsmath}
+  - \usepackage{enumerate}
+  - \usepackage[shortlabels]{enumitem}
+  - \usepackage[hang,flushmargin]{footmisc}	
+  - \usepackage{makecell}
+  - \usepackage{url}
+  - \usepackage{longtable}
+  - \setlength{\LTleft}{0pt plus 1fill}
+  - \setlength{\LTright}{0pt plus 1fill}
+  - \AtBeginDocument{\setlength{\LTcapwidth}{\textwidth}}
+  - \usepackage{graphicx}
+  - \usepackage{fvextra}
+  - \fvset{breaklines=true,breakanywhere=true}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{xcolor}
+  - \usepackage[most]{tcolorbox}
+  - \newtcolorbox{qbox}{enhanced,breakable,boxrule=0.5pt,arc=2mm,
+    colback=gray!10,colframe=black!50,left=6pt,right=6pt,top=6pt,bottom=6pt}
+  - \usepackage{fontspec}
+  - \usepackage[margin=1in]{geometry}
+  - \usepackage{titling}
+  - \setlength{\droptitle}{-1in}
+  - \usepackage{setspace}
+  - \setstretch{1.2} 
+  - \frenchspacing
+---
+
+```{r setup, include = FALSE, message=FALSE, results=FALSE, echo = FALSE}
+# r libraries
+# data manipulation
+library(dplyr)
+# network measures and figures
+library(igraph)
+library(ggplot2)
+library(latentnet)
+# other packages are called explicitly with package::function
+# haven, knitr, kableExtra, network, ergm, coda, and parallel
+
+# figure defaults
+set.seed(5080)
+knitr::opts_chunk$set(
+                      fig.width = 9, fig.height = 7, fig.retina = 3,
+                      out.width = "100%", fig.align = "center", fig.pos = "H",
+                      cache = FALSE,
+                      cache.path = getOption("hw2.cache.path", "hw2_cache/"),
+                      echo = TRUE,
+                      message = FALSE, 
+                      warning = FALSE,
+                      hiline = TRUE
+                      )
+options(tinytex.verbose = TRUE)
+
+knitr::knit_hooks$set(plot = function (x, options) {
+  float_correct <- function(f, y, opts)  {
+    if (is.null(opts$regfloat) || opts$regfloat==FALSE)
+      paste0(f(y, opts), "\n\n\\FloatBarrier\n")
+    else
+      f(y, opts)
+  }
+  if (!is.null(options$out.width) || !is.null(options$out.height) ||
+      !is.null(options$out.extra) || options$fig.align != "default" ||
+      !is.null(options$fig.subcap)) {
+    if (is.null(options$fig.scap))
+      options$fig.scap = NA
+    return(float_correct(knitr:::hook_plot_tex, x, options))
+  }
+  return(float_correct(knitr:::hook_plot_md_base, x, options))
+})
+
+```
+
+
+# Instruction
+
+\begin{qbox}
+
+Find a network dataset that has been used in a previously published paper, but is not an example dataset from a software package, and has not been used in an in-class tutorial (other than your own, if you have given yours). Apply the following methods, present the results in the form of a figure or table, and interpret what you find. Be sure to compare results across the methods (are inferences robust?).
+
+\begin{enumerate}
+
+\item CUG test of the significance of at least one network property.
+
+\item QAP testing the association between the network and one or more covariates.
+
+\item ERGM, assuring estimation convergence and adequate model fit.
+
+\item LSM, assuring convergence and adequate model fit.
+
+\end{enumerate}
+
+Submit a PDF write-up, as well as the data and code required to reproduce your findings.
+
+\end{qbox}
+
+## GitHub Repository
+
+Code and data for reproducing this file are available in my [GitHub repository](https://github.com/jodypark/plsc508_political_networks/tree/main/replication-extension/ban-park-you-2026-jop). The file `hw2_ban-et-al-2026_508_park_261109.Rmd` continues Homework 1. It builds the network from the authors' original replication data and runs every analysis below. The repository README explains how to download the large data files from Harvard Dataverse. 
+
+## Data and network construction
+
+This assignment continues the analysis of the 113th Congress network from Homework 1, using the data from @ban2026. A tie joins member $m$ and agency $a$ when $m$ questioned a witness from $a$ at least once in a House committee hearing. Table \@ref(tab:hw-description) describes the network. It contains 419 members and 51 agency codes with 2,854 member--agency ties. These ties come from 10,998 witness--member--hearing rows in 831 hearings. All members are Democrats or Republicans. The bipartite density is 0.134. Two members share a tie in the member projection when they questioned witnesses from at least one common agency. I call such a tie a shared audience. It does not record communication between members or the content of testimony. The binary projection has a density of 0.703.
+
+Homework 1 found that communities in this network cut across party and follow committees more closely. For homework 2, I ask whether co-partisans share agency contacts more than expected once member activity and committee are taken into account. The question complements the content hypothesis in @ban2026. It does not replicate their coefficient, which concerns how much analysis a bureaucrat provides once an exchange occurs.
+
+Two limits apply to every result below. First, I have no verified committee rosters. I therefore cannot define which member--agency pairs had a chance to form, and a zero means only that the data record no exchange. All four methods describe contact conditional on the members and agencies observed in the data. None of them measures access. Second, the methods use different networks. The conditional uniform graph (CUG) test and the quadratic assignment procedure (QAP) use the member projection and describe shared audiences. Projection creates closure mechanically, because each agency joins all of its members into a clique [@lo2026]. The CUG test therefore randomizes the bipartite incidence matrix and projects each draw. The exponential random graph model (ERGM) and the latent space model (LSM) model the bipartite network directly and describe member--agency contacts. As in Homework 1, a member's modal observed committee is the committee in which the member appears most often in these data. It is an endogenous proxy built from the same hearings, not an eligibility set. None of the estimates has a causal interpretation.
+
+```{r hw-data}
+# read the original bureaucratic witness dyads
+hw_data <- haven::read_dta("bureaucrats_jop/dyad_b.dta")
+stopifnot(!anyDuplicated(hw_data$dyad_id),
+          !anyNA(hw_data[c("asker", "agencycode", "congress")]),
+          all(nzchar(hw_data$agencycode)))
+hw_congress <- 113
+
+# reproduce Table 2 appointment and presidential alignment coding
+hw_data <- hw_data %>%
+  mutate(pas = as.numeric(polappt_type == "PAS"),
+         pas = ifelse(agencycode == "DD", NA_real_, pas),
+         pas = ifelse(!is.na(dod_pol), dod_pol, pas),
+         outparty = 1 - pres_party,
+         appointment = case_when(
+           pas == 1 ~ "PAS / Defense political",
+           polappt == 0 | (agencycode == "DD" & dod_pol == 0) ~ "Career / Defense nonpolitical",
+           TRUE ~ "Other / unknown"),
+         party = case_when(party_code == 100 ~ "Democrat",
+                           party_code == 200 ~ "Republican",
+                           TRUE ~ "Other"))
+hw_sample <- hw_data %>% filter(congress == hw_congress)
+
+# a tie records participation; weight counts witness-member-hearing rows
+hw_edges <- hw_sample %>%
+  group_by(asker, agencycode) %>%
+  summarise(weight = n(), .groups = "drop")
+hw_members <- hw_sample %>% distinct(asker, party)
+stopifnot(!anyDuplicated(hw_members$asker))
+hw_members <- hw_members %>% arrange(asker)
+hw_agencies <- sort(unique(hw_sample$agencycode))
+hw_B <- matrix(0, nrow(hw_members), length(hw_agencies),
+               dimnames = list(paste0("M", hw_members$asker), hw_agencies))
+hw_B[cbind(match(hw_edges$asker, hw_members$asker),
+           match(hw_edges$agencycode, hw_agencies))] <- hw_edges$weight
+hw_g <- graph_from_biadjacency_matrix(hw_B, weighted = TRUE)
+hw_binary <- 1L * (hw_B > 0)
+
+# the member projection counts shared agencies, not direct member exchanges
+hw_shared <- tcrossprod(hw_binary)
+diag(hw_shared) <- 0
+hw_project <- graph_from_adjacency_matrix(hw_shared, mode = "undirected",
+                                          weighted = TRUE, diag = FALSE)
+stopifnot(is_bipartite(hw_g), !is_directed(hw_g),
+          ecount(hw_g) == nrow(hw_edges))
+
+# white tables allow explicit alignment for formatted numeric columns
+# short tables stay in place without page breaks; long tables may break across pages
+hw_table <- function(x, caption, digits = 3, align = NULL) {
+  long <- nrow(x) > 25
+  knitr::kable(x, format = "latex", booktabs = TRUE, longtable = long,
+               digits = digits, caption = caption, row.names = FALSE, align = align,
+               format.args = list(big.mark = ",")) %>%
+    kableExtra::kable_styling(full_width = FALSE, position = "center",
+                             font_size = 9,
+                             latex_options = if (long) "repeat_header" else "HOLD_position",
+                             repeat_header_method = "replace") %>%
+    kableExtra::row_spec(0:nrow(x), background = "white", color = "black")
+}
+# print regression tables with paired estimate and uncertainty rows
+hw_reg_table <- function(columns, rows, summary_rows, caption, label, notes) {
+  # typeset negative numbers with a true minus sign
+  row <- function(x) paste0(paste(gsub("(^|\\()-([0-9])", "\\1$-$\\2", x), collapse = " & "), " \\\\")
+  cat("\\begin{table}[H]\n\\centering\\small\n\\begin{threeparttable}\n",
+      "\\caption{", caption, "}\\label{", label, "}\n",
+      "\\begin{tabular*}{\\linewidth}{@{\\extracolsep{\\fill}}l",
+      paste(rep("c", length(columns)), collapse = ""), "}\n\\toprule\n",
+      row(c("", columns)), "\n",
+      row(c("", paste0("(", seq_along(columns), ")"))), "\n\\midrule\n",
+      paste(apply(rows, 1, row), collapse = "\n"), "\n\\addlinespace[4pt]\n",
+      paste(apply(summary_rows, 1, row), collapse = "\n"),
+      "\n\\bottomrule\n\\end{tabular*}\n\\begin{tablenotes}[flushleft]\n",
+      "\\footnotesize\n\\item \\textit{Notes:} ", notes,
+      "\n\\end{tablenotes}\n\\end{threeparttable}\n\\end{table}\n", sep = "")
+}
+
+# add stars using unrounded inference p-values
+hw_reg_estimate <- function(estimate, p) {
+  stars <- ifelse(is.na(p), "", ifelse(p < .001, "***",
+    ifelse(p < .01, "**", ifelse(p < .05, "*", ""))))
+  paste0(sprintf("%.3f", estimate), ifelse(stars == "", "", paste0("$^{", stars, "}$")))
+}
+hw_pal <- c(Democrat = "#0072B2", Republican = "#D55E00",
+            Other = "#000000", Agency = "#009E73")
+```
+
+```{r hw-description, results='asis'}
+# describe the observed network, not an eligible committee roster
+hw_description <- data.frame(
+  Congress = hw_congress, Members = nrow(hw_B), Agencies = ncol(hw_B),
+  Ties = sum(hw_binary), Rows = nrow(hw_sample),
+  Hearings = n_distinct(hw_sample$hearingid),
+  Density = mean(hw_binary))
+hw_table(hw_description, "Observed participation in the 113th Congress")
+```
+
+
+```{r hw-covariates}
+# align modal observed committee with the member matrix order
+hw_modal <- hw_sample %>% count(asker, committee_name) %>%
+  arrange(asker, desc(n), committee_name) %>% group_by(asker) %>%
+  slice_head(n = 1) %>% ungroup()
+hw_members$committee <- hw_modal$committee_name[match(hw_members$asker, hw_modal$asker)]
+hw_y <- 1L * (hw_shared > 0)
+hw_party <- outer(hw_members$party, hw_members$party, "==") * 1L
+hw_committee <- outer(hw_members$committee, hw_members$committee, "==") * 1L
+diag(hw_party) <- diag(hw_committee) <- 0
+stopifnot(!anyNA(hw_members$committee))
+```
+
+# 1. CUG Test
+
+## Party contact-density gap in the member projection
+
+I test whether co-partisans share agency audiences more often than members of different parties. Let $\bar{y}_{\text{same}}$ and $\bar{y}_{\text{diff}}$ be the density of the binary member projection $Y$ among same-party and different-party member pairs. The test statistic is the party contact-density gap:
+$$
+T(Y) = \bar{y}_{\text{same}} - \bar{y}_{\text{diff}}
+$$
+A positive gap means that co-partisan pairs share at least one agency more often than cross-party pairs. A CUG test compares the observed statistic with its distribution in random networks that hold selected features fixed [@cranmer2021]. Each random draw is a bipartite incidence matrix with the observed 419 members and 51 agencies. I project every draw onto members before computing $T$, so the reference distribution contains the closure that projection creates. I use three references. (1) The size-only reference sets each cell to one with probability 0.5. (2) The edge reference places the observed 2,854 ties at random. (3) The member-degree reference keeps each member's observed number of agency contacts and assigns the agencies at random. No reference keeps agency popularity, and the size-only reference is a weak benchmark. With $R=499$ draws per reference, the two-sided Monte Carlo p-value is
+$$
+p = \min\left\{1,\; 2\min\left(\frac{1+\sum_{r=1}^{R} \mathbf{1}[T_r \ge T_{\text{obs}}]}{R+1},\; \frac{1+\sum_{r=1}^{R} \mathbf{1}[T_r \le T_{\text{obs}}]}{R+1}\right)\right\}
+$$
+The smallest attainable value is $2/500=0.004$. The test concerns who shares an audience. It does not test the content of the information that members receive.
+
+```{r hw-cug, results='hide', cache=TRUE, cache.extra=list(hw_binary, hw_party)}
+# compare within-party and between-party projected contact densities
+hw_upper <- upper.tri(hw_y)
+hw_gap <- function(B) {
+  Y <- tcrossprod(B) > 0
+  mean(Y[hw_upper & hw_party == 1]) - mean(Y[hw_upper & hw_party == 0])
+}
+hw_cug_observed <- hw_gap(hw_binary)
+hw_reps <- 499L
+set.seed(5081)
+hw_cug <- sapply(c("Size", "Edges", "Member degrees"), function(kind) {
+  replicate(hw_reps, {
+    B <- matrix(0L, nrow(hw_binary), ncol(hw_binary))
+    if (kind == "Size") B[] <- rbinom(length(B), 1, .5)
+    if (kind == "Edges") B[sample.int(length(B), sum(hw_binary))] <- 1L
+    if (kind == "Member degrees") {
+      for (i in seq_len(nrow(B))) B[i, sample.int(ncol(B), sum(hw_binary[i, ]))] <- 1L
+    }
+    hw_gap(B)
+  })
+})
+hw_mc_p <- function(x, observed) min(1, 2 * min((1 + sum(x >= observed)) / (length(x) + 1),
+                                             (1 + sum(x <= observed)) / (length(x) + 1)))
+hw_cug_table <- data.frame(Null = colnames(hw_cug), Observed = hw_cug_observed,
+                           NullMean = colMeans(hw_cug),
+                           P = apply(hw_cug, 2, hw_mc_p, observed = hw_cug_observed))
+```
+
+```{r hw-cug-table, results='asis'}
+# show Monte Carlo uncertainty at the stated simulation resolution
+hw_table(hw_cug_table, "Party contact-density gap under bipartite CUG references")
+```
+
+Table \@ref(tab:hw-cug-table) reports the results. `Observed` is the observed gap, `NullMean` is the mean gap across draws, and `P` is the two-sided Monte Carlo p-value. The observed gap is 0.006. Co-partisan pairs are about 0.6 percentage points more likely than cross-party pairs to share an agency. The size-only reference rejects the null ($p=0.004$), but the rejection carries no information. A random incidence matrix with density 0.5 connects every pair of members in the projection, so the gap is zero in every draw. The edge reference keeps the observed density. Its mean gap is close to zero ($-0.0003$), and the middle 95 percent of draws runs from $-0.007$ to $0.008$. The observed gap falls inside this range ($p=0.144$). The member-degree reference is the most demanding. Its mean gap is 0.008, with a central 95 percent interval from 0.003 to 0.014. The observed gap is smaller than this mean ($p=0.480$). Most random networks that keep each member's activity produce a gap at least as large as the observed one. I find no evidence that co-partisans share agency audiences beyond what member activity predicts.
+
+```{r hw-cug-figure, fig.height=3.5, fig.cap="Bipartite CUG reference distributions for the projected party contact-density gap"}
+# use identical observed lines and separate null-distribution panels
+hw_cug_long <- data.frame(Gap = as.vector(hw_cug),
+                          Null = rep(colnames(hw_cug), each = hw_reps))
+ggplot(hw_cug_long, aes(Gap)) +
+  geom_histogram(bins = 30, fill = "#0072B2", color = "white") +
+  geom_vline(xintercept = hw_cug_observed, color = "#D55E00", linewidth = .8) +
+  # pad each axis so the observed line and edge tick labels stay visible
+  scale_x_continuous(n.breaks = 4, expand = expansion(mult = .12)) +
+  facet_wrap(~ Null, scales = "free") + theme_bw() +
+  labs(x = "Same-party minus different-party contact density", y = "Draws")
+```
+
+Figure \@ref(fig:hw-cug-figure) plots the three reference distributions. The orange line marks the observed gap, and each panel has its own horizontal scale. The size-only distribution collapses at zero. The edge distribution centers near zero, and the observed gap lies to the right of its center but within its bulk. The member-degree distribution centers above the observed gap.
+
+# 2. QAP
+
+## Shared agency contacts, party, and committee
+
+QAP tests whether ties in the projection are associated with dyadic covariates. The main outcome $S_{ij}$ is the number of agencies that members $i$ and $j$ both questioned. For all member pairs $i<j$, I estimate
+$$
+S_{ij} = \beta_0 + \beta_1 \text{Same party}_{ij} + \beta_2 \text{Same committee}_{ij} + \varepsilon_{ij}
+$$
+`Same party` equals one when both members belong to the same party. `Same committee` equals one when they share a modal observed committee. Ordinary least squares (OLS) gives the coefficients, but its standard errors assume independent observations. Dyads that share a member are not independent. QAP instead permutes the member labels, applying the same permutation to rows and columns, and recomputes the test statistic [@cranmer2021]. I use the semi-partialling procedure of `sna::netlm`, which permutes each covariate's residuals from a regression on the other covariates. The p-value is the share of 199 permutations whose absolute $t$ statistic equals or exceeds the observed value, with a plus-one correction. As a sensitivity check, I replace $S_{ij}$ with a binary indicator of any shared agency. QAP accounts for dependence among dyads. It does not repair the committee measure, which comes from the same hearings and does not define eligibility.
+
+```{r hw-qap, results='hide', cache=TRUE, cache.extra=list(hw_shared, hw_party, hw_committee)}
+# use the same semi-partialling statistic and permutations as sna::netlm(qapspp)
+# finite symmetric data permit fixed QR residualization, avoiding repeated NA scans
+hw_qapspp <- function(y, x, reps = 199L) {
+  stopifnot(isSymmetric(y), all(is.finite(y)),
+    all(vapply(x, function(z) isSymmetric(z) && all(is.finite(z)), logical(1))))
+  n <- nrow(y)
+  use <- lower.tri(y)
+  Y <- y[use]
+  X <- cbind(Intercept = 1, sapply(x, function(z) z[use]))
+  q <- qr(X)
+  b <- qr.coef(q, Y)
+  residual <- qr.resid(q, Y)
+  rdf <- length(Y) - ncol(X)
+  tstat <- b / sqrt(diag(chol2inv(q$qr)) * sum(residual^2) / rdf)
+  draws <- matrix(NA_real_, reps, ncol(X))
+
+  # consume the unused intercept permutations to retain sna's seeded label sequence
+  for (j in seq_len(reps)) sample.int(n)
+  for (i in 2:ncol(X)) {
+    q0 <- qr(X[, -i, drop = FALSE])
+    yr <- qr.resid(q0, Y)
+    xr <- qr.resid(q0, X[, i])
+    R <- matrix(0, n, n)
+    R[use] <- xr
+    R[upper.tri(R)] <- t(R)[upper.tri(R)]
+    for (j in seq_len(reps)) {
+      o <- sample.int(n)
+      v <- qr.resid(q0, R[o, o][use])
+      ss <- sum(v^2)
+      xy <- sum(v * yr)
+      draws[j, i] <- xy / sqrt(ss * (sum(yr^2) - xy^2 / ss) / rdf)
+    }
+  }
+  list(coefficients = b, tstat = tstat, dist = draws)
+}
+set.seed(5082)
+hw_qap <- hw_qapspp(hw_shared, list(hw_party, hw_committee))
+set.seed(5083)
+hw_qap_binary <- hw_qapspp(hw_y, list(hw_party, hw_committee))
+hw_qap_extract <- function(fit, outcome) {
+  data.frame(Outcome = outcome, Term = c("Intercept", "Same party", "Same committee"),
+             Estimate = fit$coefficients, QAPp = c(NA_real_, (1 + colSums(abs(fit$dist[, -1, drop = FALSE]) >=
+               rep(abs(fit$tstat[-1]), each = nrow(fit$dist)))) / (nrow(fit$dist) + 1)))
+}
+hw_qap_table <- rbind(hw_qap_extract(hw_qap, "Shared agencies"),
+                       hw_qap_extract(hw_qap_binary, "Any shared agency"))
+```
+
+```{r hw-qap-table, results='asis'}
+# pair coefficients with permutation p-values, leaving intercept inference blank
+hw_qap_columns <- c("Shared agencies", "Any shared agency")
+hw_qap_terms <- c("Same party", "Same committee", "Intercept")
+hw_qap_rows <- do.call(rbind, lapply(hw_qap_terms, function(term) {
+  z <- hw_qap_table[match(paste(hw_qap_columns, term),
+    paste(hw_qap_table$Outcome, hw_qap_table$Term)), ]
+  p <- if (term == "Intercept") rep(NA_real_, nrow(z)) else z$QAPp
+  rbind(c(term, hw_reg_estimate(z$Estimate, p)),
+        c("", ifelse(is.na(p), "", sprintf("[%.3f]", p))))
+}))
+# report the number of undirected member pairs and permutation draws
+hw_qap_summary <- rbind(
+  c("Member pairs", rep(format(choose(nrow(hw_binary), 2), big.mark = ",", trim = TRUE), 2)),
+  c("Permutations", rep("199", 2)))
+hw_reg_table(hw_qap_columns, hw_qap_rows, hw_qap_summary,
+  "QAP regressions of shared agency contacts on member-pair covariates",
+  "tab:hw-qap-table",
+  paste("OLS coefficients with QAP semi-partialling inference.",
+    "Two-sided permutation p-values in brackets; with 199 permutations the smallest attainable p-value is 0.005.",
+    "* p < 0.05; ** p < 0.01; *** p < 0.001."))
+```
+
+Table \@ref(tab:hw-qap-table) reports the estimates, with two-sided permutation p-values in brackets. On the count scale, the model predicts that a cross-party pair from different committees shares 1.534 agencies. Co-partisans share 0.051 more agencies ($p=0.020$), and members with the same modal committee share 1.988 more ($p=0.005$). On the binary scale, the party coefficient falls to 0.006 ($p=0.150$). Committee remains strong. A common modal committee raises the probability of any shared agency by 0.274 ($p=0.005$). Co-partisans thus share slightly more agencies on average but are no more likely to share any agency. The party result depends on how I weight ties, while the committee result holds on both scales. Two cautions apply. With 199 permutations the smallest attainable p-value is 0.005, so both committee p-values sit at this floor. Monte Carlo error is also material near 0.02. The two outcomes have different scales, so I compare the direction of the coefficients rather than their size.
+
+# 3. ERGM
+
+## Bipartite model of member--agency contact
+
+I model the bipartite network directly with an ERGM. The network has 419 members, 51 agencies, 21,369 member--agency dyads, and 2,854 ties. Ties within a mode cannot occur. An ERGM gives the probability of the observed network $y$ as
+$$
+P(Y=y \mid X) = \frac{\exp\{\theta^\top g(y,X)\}}{\kappa(\theta)}
+$$
+Here $g(y,X)$ is a vector of network statistics, $X$ holds the covariates, and $\kappa(\theta)$ sums the numerator over all possible networks [@cranmer2021]. In a bipartite ERGM, the possible networks contain only member--agency ties [@wang2009]. A positive coefficient means that networks with larger values of its statistic are more likely, holding the other statistics fixed. The model describes contacts among the observed members and agencies. It does not identify which pairs had an opportunity to form.
+
+The main covariate is alignment between a member's party and an agency's ideology. I take agency ideology from the conservatism scores of @richardson2018 in the original data and center them at the median scored agency. Alignment multiplies the centered score by $+1$ for Republicans and $-1$ for Democrats. It is positive when a Republican faces a conservative agency or a Democrat faces a liberal agency. The measure is a gradient of partisan fit, not a distance on a common ideological scale. In the 113th Congress, Democrats shared the President's party. Seven of the 51 agency codes, including the pooled Defense code `DD`, have a missing or conflicting score. I set their centered score to zero and add an indicator for missing ideology and its interaction with party. These two terms give the unscored agencies their own contact rates, so the zero does not treat them as moderate. The committee proxy equals one when the member's modal observed committee heard from the agency at least once in the 113th Congress.
+
+I estimate three models. The Baseline model contains only an edge term. The Covariates model adds member party, agency ideology, missing ideology, alignment, party $\times$ missing, and the committee proxy. These terms are dyad independent, so this model is a logistic regression. The Dependence model is my final specification. Its statistics are
+$$
+g(y,X) = \left(\text{Republican},\ \text{Member hearings},\ \text{Alignment},\ \text{Party} \times \text{missing},\ \text{Committee proxy},\ \text{GWD}_{0.5}\right)
+$$
+I estimate it over the networks whose agency degrees equal the observed degrees. This constraint models which members contact each agency, given how many members each agency faced. It fits the framing above, which conditions on observed participants. Edges, agency ideology, and missing ideology are constant under the constraint, so they drop out. The remaining terms vary within agencies and stay identified. Member hearings is the centered log of the number of distinct hearings a member attended (range 1 to 107, median 17). It controls for how many hearing opportunities a member's record contains. It is itself a product of committee work and does not measure access. The geometrically weighted member degree (GWD) term is
+$$
+\text{GWD}_{\alpha} = e^{\alpha} \sum_{k \ge 1} \left\{1-\left(1-e^{-\alpha}\right)^{k}\right\} D_k
+$$
+where $D_k$ counts members with degree $k$ and $\alpha=0.5$ is fixed. It captures how unevenly contacts spread across members.
+
+I condition on agency degrees because the alternatives fit poorly. A model with geometrically weighted degree terms for both modes converged, but it simulated isolated members and agencies, which these data cannot contain, and too few members with a single contact. Models with agency fixed effects or a log agency hearing count either failed to converge or still missed the agency degrees.
+
+```{r hw-bipartite-covariates}
+# audit auxiliary coverage; use original ideology scores as its codebook directs
+hw_aux <- read.csv("additional-data/clean/agency_attributes.csv")
+stopifnot(!anyDuplicated(hw_aux$agencycode), all(hw_agencies %in% hw_aux$agencycode))
+hw_one_score <- function(x) {
+  z <- unique(x[!is.na(x)])
+  if (length(z) == 1L) z else NA_real_
+}
+hw_ideo <- hw_sample %>% group_by(agencycode) %>%
+  summarise(Ideology = hw_one_score(agency_ideo), .groups = "drop")
+hw_ideo <- hw_ideo[match(hw_agencies, hw_ideo$agencycode), ]
+hw_ideo$Ideology[hw_ideo$agencycode == "DD"] <- NA_real_
+hw_ideo$Missing <- as.numeric(is.na(hw_ideo$Ideology))
+hw_ideo$Centered <- hw_ideo$Ideology - median(hw_ideo$Ideology, na.rm = TRUE)
+hw_ideo$Centered[is.na(hw_ideo$Centered)] <- 0
+stopifnot(all(hw_members$party %in% c("Democrat", "Republican")))
+hw_sign <- ifelse(hw_members$party == "Republican", 1, -1)
+hw_alignment <- outer(hw_sign, hw_ideo$Centered)
+hw_unknown_alignment <- outer(hw_sign, hw_ideo$Missing)
+
+# construct a descriptive modal-committee contact proxy, not a roster risk set
+hw_seen <- unique(hw_sample[c("committee_name", "agencycode")])
+hw_jurisdiction <- outer(hw_members$committee, hw_agencies,
+  Vectorize(function(c, a) any(hw_seen$committee_name == c & hw_seen$agencycode == a))) * 1
+hw_bip <- network::network(hw_binary, directed = FALSE, bipartite = nrow(hw_binary),
+                            matrix.type = "bipartite")
+network::set.vertex.attribute(hw_bip, "party", c(hw_members$party, rep("Agency", ncol(hw_binary))))
+network::set.vertex.attribute(hw_bip, "ideology", c(rep(0, nrow(hw_binary)), hw_ideo$Centered))
+network::set.vertex.attribute(hw_bip, "missing", c(rep(0, nrow(hw_binary)), hw_ideo$Missing))
+# member exposure: centered log count of distinct hearings attended
+hw_hearings <- hw_sample %>% group_by(asker) %>% summarise(n = n_distinct(hearingid))
+hw_members$hearings <- log(hw_hearings$n[match(hw_members$asker, hw_hearings$asker)])
+network::set.vertex.attribute(hw_bip, "hearings",
+  c(hw_members$hearings - mean(hw_members$hearings), rep(0, ncol(hw_binary))))
+stopifnot(!anyNA(hw_members$hearings),network::network.size(hw_bip) == sum(dim(hw_binary)),
+          network::network.edgecount(hw_bip) == sum(hw_binary))
+# verify finite dyadic covariates, ordering, and full column rank
+hw_X <- cbind(Intercept = 1,
+  Republican = rep(as.numeric(hw_members$party == "Republican"), ncol(hw_binary)),
+  Ideology = rep(hw_ideo$Centered, each = nrow(hw_binary)),
+  Missing = rep(hw_ideo$Missing, each = nrow(hw_binary)),
+  Alignment = as.vector(hw_alignment), UnknownAlignment = as.vector(hw_unknown_alignment),
+  Committee = as.vector(hw_jurisdiction))
+stopifnot(all(is.finite(hw_X)), qr(hw_X)$rank == ncol(hw_X),
+  identical(dim(hw_alignment), dim(hw_binary)),
+  identical(rownames(hw_binary), paste0("M", hw_members$asker)),
+  all(colnames(hw_binary) == hw_ideo$agencycode))
+
+# supply finite full arrays: latentnet's imported bipartite terms add structural NAs
+# only cross-mode dyads enter the likelihood; zero fill elsewhere changes no estimand
+InitErgmm.hw_covariates <- function(model) {
+  n <- network::network.size(model$Yg)
+  X <- array(0, c(n, n, ncol(hw_X) - 1L),
+    dimnames = list(NULL, NULL, colnames(hw_X)[-1]))
+  members <- seq_len(nrow(hw_binary))
+  agencies <- nrow(hw_binary) + seq_len(ncol(hw_binary))
+  for (k in seq_len(dim(X)[3])) {
+    B <- matrix(hw_X[, k + 1L], nrow(hw_binary), ncol(hw_binary))
+    X[members, agencies, k] <- B
+    X[agencies, members, k] <- t(B)
+  }
+  latentnet:::.ergmm.add.fixed(model, X, mean = 0, var = 9)
+}
+# latentnet finds custom terms on the search path, so register the term globally
+assign("InitErgmm.hw_covariates", InitErgmm.hw_covariates, envir = globalenv())
+hw_lsm_formula <- hw_bip ~ hw_covariates + euclidean(d = 2)
+hw_cov_formula <- hw_bip ~ edges + b1factor("party") + b2cov("ideology") +
+  b2cov("missing") + edgecov(hw_alignment) + edgecov(hw_unknown_alignment) +
+  edgecov(hw_jurisdiction)
+```
+
+```{r hw-ergm, results='hide', cache=TRUE, cache.extra=list(hw_binary, hw_alignment, hw_unknown_alignment, hw_jurisdiction, hw_members$hearings)}
+# compare density, observed covariates, and degree dependence
+hw_e0 <- ergm::ergm(hw_bip ~ edges)
+hw_e1 <- ergm::ergm(hw_cov_formula)
+# condition on observed agency degrees; member exposure and degree spread stay modeled
+# agency-level main effects and edges are fixed by this constraint and drop out
+hw_dep_terms <- c("b1factor.party.Republican", "b1cov.hearings", "edgecov.hw_alignment",
+  "edgecov.hw_unknown_alignment", "edgecov.hw_jurisdiction")
+hw_dep_formula <- hw_bip ~ b1factor("party") + b1cov("hearings") + edgecov(hw_alignment) +
+  edgecov(hw_unknown_alignment) + edgecov(hw_jurisdiction) + gwb1degree(.5, fixed = TRUE)
+# start MCMLE from the matching logit with agency intercepts and a positive degree term
+hw_e2_start <- ergm::ergm(hw_bip ~ b1factor("party") + b1cov("hearings") + edgecov(hw_alignment) +
+  edgecov(hw_unknown_alignment) + edgecov(hw_jurisdiction) + b2sociality(nodes = NULL))
+hw_e2 <- ergm::ergm(hw_dep_formula, constraints = ~ b2degrees, eval.loglik = FALSE,
+  control = ergm::control.ergm(init = c(coef(hw_e2_start)[hw_dep_terms], 2),
+    seed = 5085, MCMLE.maxit = 30))
+hw_ergm_table <- bind_rows(lapply(list(Baseline = hw_e0, Covariates = hw_e1,
+                                      Dependence = hw_e2), function(x) {
+  z <- summary(x)$coefficients
+  data.frame(Term = rownames(z), Estimate = z[, 1], SE = z[, 2], P = z[, ncol(z)])
+}), .id = "Model")
+```
+
+```{r hw-ergm-table, results='asis'}
+# report all terms and uncertainty for the nested specifications with readable labels
+hw_term_labels <- c(edges = "Edges", b1factor.party.Republican = "Republican",
+  b2cov.ideology = "Agency ideology", b2cov.missing = "Ideology missing",
+  edgecov.hw_alignment = "Alignment", edgecov.hw_unknown_alignment = "Party $\\times$ missing",
+  edgecov.hw_jurisdiction = "Committee proxy", b1cov.hearings = "Member hearings (log)",
+  gwb1deg.fixed.0.5 = "Member GW degree ($\\alpha=0.5$)")
+stopifnot(all(hw_ergm_table$Term %in% names(hw_term_labels)))
+# pair estimates with standard errors and leave absent model terms blank
+hw_ergm_columns <- c("Baseline", "Covariates", "Dependence")
+hw_ergm_rows <- do.call(rbind, lapply(names(hw_term_labels), function(term) {
+  z <- hw_ergm_table[match(paste(hw_ergm_columns, term),
+    paste(hw_ergm_table$Model, hw_ergm_table$Term)), ]
+  rbind(c(unname(hw_term_labels[term]),
+          ifelse(is.na(z$Estimate), "", hw_reg_estimate(z$Estimate, z$P))),
+        c("", ifelse(is.na(z$SE), "", sprintf("(%.3f)", z$SE))))
+}))
+# summarize the observed bipartite network and the degree constraint
+hw_ergm_counts <- format(c(nrow(hw_binary), ncol(hw_binary),
+  length(hw_binary), sum(hw_binary)), big.mark = ",", trim = TRUE)
+hw_ergm_summary <- rbind(c("Agency degrees fixed", "No", "No", "Yes"),
+  cbind(c("Members", "Agencies", "Member--agency dyads", "Ties"),
+        matrix(rep(hw_ergm_counts, 3), ncol = 3)))
+hw_reg_table(hw_ergm_columns, hw_ergm_rows, hw_ergm_summary,
+  "Bipartite ERGM estimates for observed member--agency contacts",
+  "tab:hw-ergm-table",
+  paste("Maximum likelihood estimates for models (1) and (2) and Monte Carlo maximum likelihood estimates for model (3).",
+    "Standard errors in parentheses.",
+    "Model (3) conditions on observed agency degrees, so edges, agency ideology, and ideology missing are fixed by the constraint and left blank.",
+    "* p < 0.05; ** p < 0.01; *** p < 0.001."))
+```
+
+Table \@ref(tab:hw-ergm-table) reports the estimates, with standard errors (SE) in parentheses. The Baseline edge coefficient of $-1.870$ reproduces the density of 0.134. In the Covariates model, alignment has a coefficient of 0.042 (SE 0.032, $p=0.183$). Republicans have slightly higher contact odds than Democrats (0.087, $p=0.084$), and agency ideology has a small negative coefficient ($-0.050$, $p=0.114$). The missing-ideology terms are small and imprecise. The committee proxy is the largest term (3.071, SE 0.056).
+
+The Dependence model leaves alignment almost unchanged at 0.044 (SE 0.033, $p=0.183$). In every specification, partisan fit with an agency's ideology does not predict contact. The Republican coefficient falls to $-0.021$ ($p=0.723$) once member hearings enters the model. The higher contact rate of Republicans in the Covariates model thus appears to reflect attendance at more hearings. Member hearings has a coefficient of 1.030 (SE 0.043). Given agency activity, a member who attended about 2.7 times as many hearings has contact log-odds 1.03 higher. The committee proxy remains the largest term (2.812, SE 0.065). The odds of contact are about 16.6 times higher, or $\exp(2.812)$, when the member's modal committee heard from the agency. This estimate describes how the proxy sorts observed contacts. The proxy comes from the same hearings, so it cannot measure eligibility or remove selection. The positive member degree term (4.076, SE 0.538) means that contacts spread more evenly across members than the other terms alone would produce. The term also penalizes members with no contacts, which cannot occur in these data.
+
+## Convergence and goodness of fit
+
+```{r hw-ergm-diagnostics, fig.height=4.5, fig.cap="ERGM MCMC traces of sampled statistics minus observed targets", results='hide'}
+# check sampled network statistics against their observed targets
+ergm::mcmc.diagnostics(hw_e2, which = "texts")
+hw_ergm_ess <- coda::effectiveSize(hw_e2$sample)
+hw_ergm_chain <- as.matrix(hw_e2$sample)
+hw_ergm_labels <- c("Republican", "Member hearings", "Alignment", "Party x missing",
+  "Committee proxy", "Member degree")
+stopifnot(ncol(hw_ergm_chain) == length(hw_ergm_labels))
+hw_ergm_trace <- bind_rows(lapply(seq_len(ncol(hw_ergm_chain)), function(i) {
+  data.frame(Draw = seq_len(nrow(hw_ergm_chain)), Value = hw_ergm_chain[, i],
+    Term = hw_ergm_labels[i])
+}))
+ggplot(hw_ergm_trace, aes(Draw, Value)) +
+  geom_hline(yintercept = 0, color = "#D55E00") +
+  geom_line(color = "#0072B2", linewidth = .2) +
+  facet_wrap(~Term, scales = "free_y", ncol = 3) + theme_bw() +
+  labs(y = "Statistic minus observed target")
+
+```
+
+```{r hw-ergm-acf, fig.height=4.5, fig.cap="ERGM autocorrelation of sampled network statistics"}
+# inspect residual serial dependence in the sampled network statistics
+hw_ergm_acf <- bind_rows(lapply(seq_len(ncol(hw_ergm_chain)), function(i) {
+  a <- acf(hw_ergm_chain[, i], lag.max = 30, plot = FALSE)
+  data.frame(Lag = as.vector(a$lag), ACF = as.vector(a$acf), Term = hw_ergm_labels[i])
+}))
+ggplot(hw_ergm_acf, aes(Lag, ACF)) + geom_hline(yintercept = 0) +
+  geom_segment(aes(xend = Lag, yend = 0), color = "#0072B2") +
+  facet_wrap(~Term, ncol = 3) + theme_bw()
+```
+
+I first check convergence. The Monte Carlo maximum likelihood algorithm met the 99 percent convergence criterion in `ergm` at iteration 8. In this test a small p-value indicates convergence ($p=0.0025$). Figure \@ref(fig:hw-ergm-diagnostics) plots the sampled statistics minus their observed values in the final Markov chain Monte Carlo (MCMC) sample. All six traces fluctuate around zero without drift. The joint Geweke test does not reject stationarity ($p=0.717$). Effective sample sizes range from 223 for alignment to 655 for member degree. Figure \@ref(fig:hw-ergm-acf) shows the autocorrelation of the stored draws. Lag-one autocorrelation is about 0.4 to 0.5 for most terms and about 0.1 for member degree. It falls near zero by lag 5, although party $\times$ missing keeps a small positive tail. Convergence shows that the estimates solve the likelihood equations. Whether the model fits the network is a separate question.
+
+```{r hw-ergm-gof-fit, results='hide', cache=TRUE, cache.extra=coef(hw_e2)}
+# compare simulated member degrees and the fitted sufficient statistics
+set.seed(5086)
+hw_egof <- ergm::gof(hw_e2, GOF = ~ b1degree + model,
+                     control = ergm::control.gof.ergm(nsim = 100))
+hw_ergm_gof_df <- with(hw_egof, data.frame(Degree = seq_along(obs.b1deg) - 1L,
+  Observed = cumsum(obs.b1deg) / nrow(hw_binary),
+  Median = apply(t(apply(sim.b1deg, 1, cumsum)) / nrow(hw_binary), 2, median),
+  Lower = apply(t(apply(sim.b1deg, 1, cumsum)) / nrow(hw_binary), 2, quantile, .025),
+  Upper = apply(t(apply(sim.b1deg, 1, cumsum)) / nrow(hw_binary), 2, quantile, .975)))
+# diagnose degree spread and repeated audience overlap, which the ERGM does not model
+hw_bip_stats <- function(B) {
+  shared <- tcrossprod(B)
+  common <- shared[upper.tri(shared)]
+  c(Edges = sum(B), MemberSD = sd(rowSums(B)), AgencySD = sd(colSums(B)),
+    FourCycles = sum(common * (common - 1) / 2))
+}
+hw_esim_stats <- sapply(simulate(hw_e2, nsim = 100, seed = 5086),
+  function(net) hw_bip_stats(as.matrix(net)))
+hw_eobs_stats <- hw_bip_stats(hw_binary)
+
+# retain explicit fit checks for every modeled sufficient statistic
+hw_ergm_gof_table <- rbind(data.frame(Term = hw_ergm_labels,
+  Observed = as.vector(hw_egof$obs.model), Mean = colMeans(hw_egof$sim.model),
+  Lower = apply(hw_egof$sim.model, 2, quantile, .025),
+  Upper = apply(hw_egof$sim.model, 2, quantile, .975),
+  P = hw_egof$pval.model[, "MC p-value"]),
+  data.frame(Term = c("Member degree SD (unmodeled)", "Four-cycles (unmodeled)"),
+    Observed = hw_eobs_stats[c("MemberSD", "FourCycles")],
+    Mean = rowMeans(hw_esim_stats[c("MemberSD", "FourCycles"), ]),
+    Lower = apply(hw_esim_stats[c("MemberSD", "FourCycles"), ], 1, quantile, .025),
+    Upper = apply(hw_esim_stats[c("MemberSD", "FourCycles"), ], 1, quantile, .975),
+    P = sapply(c("MemberSD", "FourCycles"), function(k) hw_mc_p(hw_esim_stats[k, ], hw_eobs_stats[k]))))
+stopifnot(all(hw_esim_stats["Edges", ] == sum(hw_binary)),
+  all(hw_esim_stats["AgencySD", ] == hw_eobs_stats["AgencySD"]))
+```
+
+```{r hw-ergm-gof, fig.height=3.5, fig.cap="Bipartite ERGM goodness of fit: cumulative member degree distribution (agency degrees fixed by constraint)"}
+# trim the axis to the observed degree range for readability
+ggplot(subset(hw_ergm_gof_df, Degree <= max(rowSums(hw_binary)) + 5), aes(Degree)) +
+  geom_ribbon(aes(ymin = Lower, ymax = Upper), fill = "#56B4E9", alpha = .3) +
+  geom_line(aes(y = Median, color = "Simulated median")) +
+  geom_line(aes(y = Observed, color = "Observed")) +
+  scale_color_manual(values = c(Observed = "#D55E00", "Simulated median" = "#0072B2")) +
+  theme_bw() + theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1)) +
+  labs(x = "Member degree", y = "Cumulative degree share", color = NULL)
+```
+
+```{r hw-ergm-gof-table, results='asis'}
+# format count statistics separately from continuous statistics
+hw_ergm_gof_display <- hw_ergm_gof_table
+hw_ergm_gof_counts <- hw_ergm_gof_display$Term %in%
+  c("Republican", "Party x missing", "Committee proxy", "Edges", "Four-cycles", "Four-cycles (unmodeled)")
+hw_ergm_gof_display$Observed <- ifelse(hw_ergm_gof_counts,
+  formatC(hw_ergm_gof_table$Observed, format = "f", digits = 0, big.mark = ","),
+  sprintf("%.3f", hw_ergm_gof_table$Observed))
+for (column in c("Mean", "Lower", "Upper")) {
+  hw_ergm_gof_display[[column]] <- ifelse(hw_ergm_gof_counts,
+    formatC(hw_ergm_gof_table[[column]], format = "f", digits = 1, big.mark = ","),
+    sprintf("%.3f", hw_ergm_gof_table[[column]]))
+}
+hw_ergm_gof_display$P <- sprintf("%.3f", hw_ergm_gof_table$P)
+hw_table(hw_ergm_gof_display, "ERGM simulated statistics and 95 percent intervals (100 networks)",
+  align = c("l", rep("r", 5)))
+```
+
+Figure \@ref(fig:hw-ergm-gof) and Table \@ref(tab:hw-ergm-gof-table) compare the observed network with 100 networks simulated from the Dependence model. The figure shows members only. The constraint fixes agency degrees in every simulated network, so agency degrees provide no test of fit. The observed cumulative member degree distribution lies inside the 95 percent envelope at every degree. The model simulates a few isolated members (mean 2.83 against 0 observed, $p=0.10$) and somewhat too few members with one contact (26.5 against 35, $p=0.04$). The cumulative share at degree one still falls within the envelope.
+
+In Table \@ref(tab:hw-ergm-gof-table), `Mean`, `Lower`, and `Upper` summarize the simulated values and `P` is the Monte Carlo p-value. The model reproduces all six of its statistics, with p-values from 0.80 to 1.00. The simulated mean of the alignment statistic ($-46.9$) differs from the observed value ($-38.3$), but its interval is wide ($-123.1$ to 8.6). Two further statistics are not in the model. The standard deviation of member degree fits (4.458 against an interval from 4.165 to 4.543, $p=0.42$). Four-cycles do not fit. The network has 209,952 four-cycles, above the simulated interval from 185,443 to 201,395 ($p=0.02$). The model underpredicts repeated audience overlap by about 8 percent. One plausible source is the hearing itself, since a single hearing places several members with several agencies at once. I treat the Dependence model as adequate for member degrees and its own statistics. Its standard errors may be too small if this residual clustering affects the alignment term, so the alignment inference is provisional.
+
+# 4. Latent Space Model
+
+## Bipartite latent distance model
+
+The LSM represents dependence in a different way. Each node has a position in a latent space, and nodes that sit closer together are more likely to be tied [@cranmer2021]. For member $m$ and agency $a$, I estimate
+$$
+\operatorname{logit} P(Y_{ma}=1) = \alpha + X_{ma}^\top \beta - \lVert z_m - z_a \rVert
+$$
+where $z_m, z_a \in \mathbb{R}^2$ are Euclidean positions. I use two dimensions so that the positions can be plotted directly. Only member--agency pairs enter the likelihood. Distance absorbs contact structure that the covariates miss. It is not a measure of ideology. $X_{ma}$ contains the covariates of the ERGM Covariates model: member party, agency ideology, missing ideology, alignment, party $\times$ missing, and the committee proxy. This set differs from the Dependence ERGM. The LSM has no agency-degree constraint and no member-hearings term, and the latent positions absorb differences in activity instead. The two models therefore condition on different information.
+
+I fit the model with `latentnet`, using normal priors with variance 9 for the coefficients and entering the covariates only for member--agency pairs. I run four chains with different seeds. Each chain discards 100,000 burn-in iterations and keeps 1,000 draws, thinned every 25 iterations. The long burn-in removes an upward drift in the latent position variance that appears in shorter runs.
+
+```{r hw-lsm, results='hide', cache=TRUE, cache.extra=list(hw_binary, hw_alignment, hw_unknown_alignment, hw_jurisdiction)}
+# retain the full observed bipartite network and identical measured covariates
+# run four seeded chains in parallel forks; forked children need their own seed
+hw_lsm_seeds <- c(5087, 5089, 5091, 5093)
+hw_lsm_fits <- parallel::mclapply(hw_lsm_seeds, function(s) {
+  set.seed(s)
+  latentnet::ergmm(hw_lsm_formula, seed = s, control = latentnet::control.ergmm(
+    burnin = 100000, sample.size = 1000, interval = 25, mle.maxit = 5), verbose = FALSE)
+}, mc.cores = ifelse(.Platform$OS.type == "windows", 1L, 4L))
+stopifnot(all(vapply(hw_lsm_fits, function(f) inherits(f, "ergmm") &&
+  identical(f$model$coef.names, c("(Intercept)", colnames(hw_X)[-1])), logical(1))))
+hw_lsm <- hw_lsm_fits[[1]]
+hw_lsm_draws <- do.call(coda::mcmc.list, lapply(hw_lsm_fits, function(f)
+  coda::as.mcmc.list(f, which.vars = list(lpY = 1, beta = seq_len(ncol(hw_X)), Z.var = 1))[[1]]))
+hw_lsm_beta <- as.matrix(hw_lsm_draws)[, grep("^beta", colnames(as.matrix(hw_lsm_draws))), drop = FALSE]
+hw_lsm_rhat <- coda::gelman.diag(hw_lsm_draws, multivariate = FALSE)$psrf
+hw_lsm_table <- data.frame(Term = c("Intercept", "Republican", "Agency ideology", "Ideology missing",
+                                    "Alignment", "Party x missing", "Committee proxy"),
+  Mean = colMeans(hw_lsm_beta), Lower = apply(hw_lsm_beta, 2, quantile, .025),
+  Upper = apply(hw_lsm_beta, 2, quantile, .975),
+  ESS = coda::effectiveSize(hw_lsm_draws)[colnames(hw_lsm_beta)],
+  Rhat = hw_lsm_rhat[colnames(hw_lsm_beta), 1])
+```
+
+```{r hw-lsm-table, results='asis'}
+# display effective sample sizes as integers and convergence ratios to three decimals
+hw_lsm_display <- hw_lsm_table
+hw_lsm_display$ESS <- sprintf("%.0f", hw_lsm_display$ESS)
+hw_lsm_display$Rhat <- sprintf("%.3f", hw_lsm_display$Rhat)
+hw_table(hw_lsm_display, "Latent distance model posterior estimates and 95 percent credible intervals",
+  align = c("l", rep("r", 5)))
+```
+
+Table \@ref(tab:hw-lsm-table) reports posterior means and 95 percent credible intervals from 4,000 pooled draws. Only the committee proxy has an interval that excludes zero. Its posterior mean of 3.214 [3.061, 3.378] implies contact odds about 25 times higher when the member's modal committee heard from the agency, given latent distance. Alignment has a mean of 0.064 [$-0.012$, 0.140]. Its sign and size resemble the ERGM estimates of 0.042 and 0.044, but the interval includes zero. Agency ideology has a negative mean of $-0.122$, and its interval barely includes zero [$-0.263$, 0.012]. The other coefficients are small relative to their uncertainty. All coefficients are conditional on the latent positions, so their magnitudes are not on the ERGM scale. I compare them with the ERGM only in direction and uncertainty.
+
+## Convergence, latent positions, and fit
+
+```{r hw-lsm-diagnostics, fig.height=7, fig.cap="Bipartite latent space traces for four chains (seeds 5087, 5089, 5091, 5093)"}
+# inspect stationarity and between-chain agreement of interpretable scalar summaries
+hw_lsm_pars <- c("lpY", colnames(hw_lsm_beta), "Z.var.1")
+hw_lsm_titles <- c("Log likelihood", hw_lsm_table$Term, "Latent position variance")
+# reserve bottom space for a shared four-chain legend
+op <- par(no.readonly = TRUE)
+par(mfrow = c(3, 3), mar = c(3, 4, 2, 1), oma = c(2, 0, 0, 0))
+for (k in seq_along(hw_lsm_pars)) coda::traceplot(hw_lsm_draws[, hw_lsm_pars[k]],
+  main = hw_lsm_titles[k], col = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), lty = 1)
+# overlay a single centred legend below the panel grid
+par(fig = c(0, 1, 0, 1), oma = c(0, 0, 0, 0), mar = c(0, 0, 0, 0), new = TRUE)
+plot.new()
+legend("bottom", legend = paste("Chain", 1:4),
+  col = c("#0072B2", "#D55E00", "#009E73", "#CC79A7"), lty = 1,
+  horiz = TRUE, bty = "n", xpd = NA)
+par(op)
+hw_lsm_ess <- coda::effectiveSize(hw_lsm_draws[, hw_lsm_pars])
+hw_lsm_geweke <- sapply(hw_lsm_draws, function(x) coda::geweke.diag(x[, hw_lsm_pars])$z)
+```
+
+Figure \@ref(fig:hw-lsm-diagnostics) overlays the four chains for the log likelihood, the seven coefficients, and the latent position variance. The chains cover the same range without visible trends. Table \@ref(tab:hw-lsm-table) also reports the pooled effective sample size (`ESS`) and the Gelman--Rubin statistic (`Rhat`). Pooled effective sample sizes range from 341 for the intercept to 729 for the committee proxy. They reach 1,351 for the log likelihood and 1,030 for the latent variance. Every Gelman--Rubin estimate lies between 1.001 and 1.020. The largest belongs to the committee proxy, whose upper confidence bound is 1.060. Chain means agree closely. The log likelihood averages between $-4{,}530$ and $-4{,}527$, alignment between 0.063 and 0.065, and the latent variance between 6.19 and 6.26.
+
+Two weaknesses remain. Per-chain effective sample sizes are modest (46 to 445). In addition, 7 of the 36 chain-by-parameter Geweke statistics exceed 1.96 in absolute value. Apart from a mild positive shift in the log likelihood of chains 3 and 4, these flags point in no common direction. The latent variance passes in all four chains ($|z| \le 1.58$). I conclude that the chains converged by multi-chain criteria, although each chain alone is less precise.
+
+```{r hw-lsm-positions, fig.height=6, fig.cap="Bipartite latent positions: members by party and agencies as triangles"}
+# aligned minimum-KL positions share a space with no ideological axis labels
+hw_z <- hw_lsm$mkl$Z
+stopifnot(identical(dim(hw_z), c(sum(dim(hw_binary)), 2L)), all(is.finite(hw_z)))
+hw_positions <- data.frame(X = hw_z[, 1], Y = hw_z[, 2],
+  Group = c(hw_members$party, rep("Agency", ncol(hw_binary))),
+  Label = c(rep("", nrow(hw_binary)), hw_agencies))
+# summarize party separation and activity in the latent space
+hw_zm <- hw_z[seq_len(nrow(hw_binary)), ]
+hw_za <- hw_z[nrow(hw_binary) + seq_len(ncol(hw_binary)), ]
+hw_dist_ma <- as.matrix(dist(rbind(hw_zm, hw_za)))[seq_len(nrow(hw_binary)),
+  nrow(hw_binary) + seq_len(ncol(hw_binary))]
+hw_centroids <- rowsum(hw_zm, hw_members$party) / as.vector(table(hw_members$party))
+hw_space <- list(
+  centroid_gap = sqrt(sum((hw_centroids["Democrat", ] - hw_centroids["Republican", ])^2)),
+  party_distance = tapply(rowMeans(hw_dist_ma), hw_members$party, mean),
+  member_r = cor(rowSums(hw_binary), rowMeans(hw_dist_ma)),
+  agency_r = cor(colSums(hw_binary), colMeans(hw_dist_ma)),
+  closest = head(hw_agencies[order(colMeans(hw_dist_ma))], 6))
+ggplot(hw_positions, aes(X, Y, color = Group, shape = Group)) +
+  geom_point(size = 1.8, alpha = .8) +
+  geom_text(data = subset(hw_positions, Group == "Agency"), aes(label = Label),
+            size = 2.8, nudge_y = .2, check_overlap = TRUE, show.legend = FALSE) +
+  # one-line legend in the HW1 order, without a title
+  scale_color_manual(values = hw_pal, breaks = c("Democrat", "Republican", "Agency"), name = NULL) +
+  scale_shape_manual(values = c(Democrat = 16, Republican = 16, Agency = 17),
+                     breaks = c("Democrat", "Republican", "Agency"), name = NULL) +
+  coord_equal() + theme_bw() + theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1), shape = guide_legend(nrow = 1)) +
+  labs(x = "Latent dimension 1", y = "Latent dimension 2")
+```
+
+Figure \@ref(fig:hw-lsm-positions) plots the minimum Kullback--Leibler positions from the first chain. The axes have no substantive meaning, because rotating the space leaves every distance unchanged. Democrats and Republicans are intermixed. Their centroids lie 0.022 units apart, and their mean distances to agencies are similar (4.60 for Democrats and 4.55 for Republicans). The space encodes activity more than party. A node's degree and its mean distance to the other mode correlate at $-0.69$ for members and $-0.79$ for agencies. The six agencies closest to members on average all faced many members: Interior (`IN`, 97 members), Defense (`DD`, 226), Agriculture (`AG`, 125), Health and Human Services (`HE`, 173), Homeland Security (`HS`, 151), and the Environmental Protection Agency (`EP`, 127). Proximity is not a ranking by degree, however. Treasury (`TR`, 165) and State (`ST`, 155) faced more members than Interior but sit farther away. Rarely contacted agencies lie on the periphery, such as the Nuclear Waste Technical Review Board (`BW`, 2 members) and the Merit Systems Protection Board (`BD`, 2). This pattern matches the bipartisan communities in Homework 1. Distance predicts member--agency contact only and says nothing about ties within a mode. The figure omits agency labels that would overlap.
+
+```{r hw-lsm-gof-fit, results='hide', cache=TRUE, cache.extra=hw_lsm_beta}
+# compare posterior predictive degrees in each mode with observed degrees
+set.seed(5088)
+# simulate only observed cross-mode dyads from each sampled parameter vector
+# latentnet::simulate.ergmm generates a full asymmetric Bernoulli matrix, then
+# undirected network conversion unions its two triangles; that changes tie probabilities
+# draw 100 posterior parameter vectors split evenly across chains
+hw_pp_index <- cbind(Chain = rep(seq_along(hw_lsm_fits), each = 100 / length(hw_lsm_fits)),
+  Draw = sample.int(nrow(hw_lsm$sample$beta), 100, replace = TRUE))
+hw_lsim_b <- lapply(seq_len(nrow(hw_pp_index)), function(r) {
+  s <- hw_lsm_fits[[hw_pp_index[r, "Chain"]]]$sample
+  i <- hw_pp_index[r, "Draw"]
+  D <- as.matrix(dist(s$Z[i, , ]))[seq_len(nrow(hw_binary)),
+    nrow(hw_binary) + seq_len(ncol(hw_binary)), drop = FALSE]
+  eta <- matrix(hw_X %*% s$beta[i, ], nrow(hw_binary), ncol(hw_binary)) - D
+  matrix(rbinom(length(eta), 1, plogis(eta)), nrow(hw_binary), ncol(hw_binary))
+})
+stopifnot(length(hw_lsim_b) == 100L,
+  all(vapply(hw_lsim_b, function(B) identical(dim(B), dim(hw_binary)), logical(1))))
+hw_degree_envelope <- function(mode) {
+  observed <- if (mode == "Members") rowSums(hw_binary) else colSums(hw_binary)
+  draws <- lapply(hw_lsim_b, function(B) if (mode == "Members") rowSums(B) else colSums(B))
+  grid <- 0:ifelse(mode == "Members", ncol(hw_binary), nrow(hw_binary))
+  cdfs <- sapply(draws, function(d) ecdf(d)(grid))
+  data.frame(Mode = mode, Degree = grid, Observed = ecdf(observed)(grid),
+    Median = apply(cdfs, 1, median), Lower = apply(cdfs, 1, quantile, .025),
+    Upper = apply(cdfs, 1, quantile, .975))
+}
+hw_lgof <- bind_rows(hw_degree_envelope("Members"), hw_degree_envelope("Agencies"))
+# reuse the ERGM check statistics, none of which the latent model fits directly
+hw_lgof_stats <- sapply(hw_lsim_b, hw_bip_stats)
+hw_lgof_table <- data.frame(Statistic = names(hw_eobs_stats),
+  Observed = hw_eobs_stats, Median = apply(hw_lgof_stats, 1, median),
+  Lower = apply(hw_lgof_stats, 1, quantile, .025), Upper = apply(hw_lgof_stats, 1, quantile, .975),
+  P = sapply(names(hw_eobs_stats), function(k) hw_mc_p(hw_lgof_stats[k, ], hw_eobs_stats[k])))
+```
+
+```{r hw-lsm-gof, fig.height=4, fig.cap="Bipartite latent model posterior predictive fit for both cumulative degree distributions"}
+# trim each axis to its observed degree range for readability
+ggplot(subset(hw_lgof, Degree <= ifelse(Mode == "Members", max(rowSums(hw_binary)),
+  max(colSums(hw_binary))) + 5), aes(Degree)) + geom_ribbon(aes(ymin = Lower, ymax = Upper),
+  fill = "#56B4E9", alpha = .3) +
+  geom_line(aes(y = Median, color = "Predictive median")) +
+  geom_line(aes(y = Observed, color = "Observed")) + facet_wrap(~Mode, scales = "free_x") +
+  scale_color_manual(values = c(Observed = "#D55E00", "Predictive median" = "#0072B2")) +
+  theme_bw() + theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1)) + labs(y = "Cumulative degree share", color = NULL)
+```
+
+I check fit with 100 posterior predictive networks, 25 from each chain. Each network takes one posterior draw of the coefficients and positions and simulates member--agency ties only. Figure \@ref(fig:hw-lsm-gof) compares the cumulative degree distributions. The agency distribution lies inside the 95 percent envelope at every degree. The member distribution lies inside at most degrees, with three exceptions. The model predicts that 1.3 to 3.9 percent of members have no contacts, which cannot happen here because every member enters the data through at least one contact. The observed share also exceeds the envelope slightly at degree 9 (0.795 against an upper bound of 0.783). Between degrees 22 and 29, the model underpredicts the most active members. The ERGM also simulates a few isolated members, but its degree term penalizes them and keeps the share within the envelope. The LSM fits agency degrees without conditioning on them, but nothing in it rules out members with no contacts.
+
+```{r hw-lsm-gof-table, results='asis'}
+# format count statistics separately from continuous statistics
+hw_lgof_display <- hw_lgof_table
+hw_lgof_display$Statistic <- c("Edges", "Member degree SD", "Agency degree SD", "Four-cycles")
+hw_lgof_counts <- hw_lgof_display$Statistic %in%
+  c("Republican", "Party x missing", "Committee proxy", "Edges", "Four-cycles", "Four-cycles (unmodeled)")
+hw_lgof_display$Observed <- ifelse(hw_lgof_counts,
+  formatC(hw_lgof_table$Observed, format = "f", digits = 0, big.mark = ","),
+  sprintf("%.3f", hw_lgof_table$Observed))
+for (column in c("Median", "Lower", "Upper")) {
+  hw_lgof_display[[column]] <- ifelse(hw_lgof_counts,
+    formatC(hw_lgof_table[[column]], format = "f", digits = 1, big.mark = ","),
+    sprintf("%.3f", hw_lgof_table[[column]]))
+}
+hw_lgof_display$P <- sprintf("%.3f", hw_lgof_table$P)
+hw_table(hw_lgof_display, "Bipartite latent model posterior predictive checks (100 networks)",
+  align = c("l", rep("r", 5)))
+```
+
+Table \@ref(tab:hw-lsm-gof-table) reports four summary statistics. `Median`, `Lower`, and `Upper` summarize the predictive distribution. All four observed values fall inside their intervals. The model reproduces the number of ties ($p=0.99$), the spread of member degrees ($p=0.51$), and the spread of agency degrees ($p=0.18$). It also reproduces four-cycles, with 209,952 observed against a predictive median of 195,312 and an interval from 170,589 to 222,649 ($p=0.36$). The ERGM underpredicted this statistic. The latent geometry captures much of the repeated audience overlap that the ERGM leaves unexplained, although its wider interval also makes the check less demanding. I treat the LSM fit as adequate on these summaries. The extremes of the member degree distribution are the remaining discrepancy.
+
+# 5. Comparing Inferences Across Methods
+
+## Robustness of the partisan inference
+
+The four methods ask related but different questions. (1) The CUG test compares an observed statistic with random networks that share some of its features. (2) QAP tests the association between projected ties and dyadic covariates against label permutations. (3) The ERGM estimates conditional log-odds of member--agency contact given the observed agency degrees. (4) The LSM estimates posterior log-odds given latent distance. The CUG test and QAP concern same-party audiences in the projection. The ERGM and LSM concern alignment between member party and agency ideology in the bipartite network. Neither quantity is the content effect in @ban2026. Because the estimands differ, I compare direction and uncertainty rather than magnitude.
+
+The committee proxy gives the most consistent result. It is large and distinguishable from zero in QAP on both scales ($p=0.005$), in the ERGM (2.812, SE 0.065), and in the LSM (3.214 [3.061, 3.378]). This agreement is not independent confirmation. Every model uses the same proxy, and the proxy comes from the same observed hearings as the outcome.
+
+```{r hw-comparison, results='asis'}
+# compare partisan associations without equating unlike outcomes or coefficients
+hw_align_e <- subset(hw_ergm_table, Model == "Dependence" & Term == "edgecov.hw_alignment")
+hw_align_l <- subset(hw_lsm_table, Term == "Alignment")
+stopifnot(nrow(hw_align_e) == 1L, nrow(hw_align_l) == 1L)
+hw_compare <- data.frame(
+  Method = c("CUG: member degrees", "QAP: binary", "ERGM", "LSM"),
+  Target = c("Audience gap", "Audience tie", "Alignment", "Alignment"),
+  Estimate = c(hw_cug_observed, hw_qap_binary$coefficients[2], hw_align_e$Estimate, hw_align_l$Mean),
+  Uncertainty = c(sprintf("MC p = %.3f", hw_cug_table$P[3]),
+    sprintf("QAP p = %.3f", hw_qap_table$QAPp[5]), sprintf("Wald p = %.3f", hw_align_e$P),
+    sprintf("95%% credible interval [%.3f, %.3f]", hw_align_l$Lower, hw_align_l$Upper)))
+hw_table(hw_compare, "Partisan contact structure across methods: distinct estimands")
+```
+
+Table \@ref(tab:hw-comparison) collects the partisan quantity from each method. All four estimates are slightly positive, and none is distinguishable from zero. The CUG gap is 0.006 ($p=0.480$ against the member-degree reference). The binary QAP party coefficient is 0.006 ($p=0.150$). The ERGM alignment coefficient is 0.044 ($p=0.183$), and the LSM alignment coefficient is 0.064 with a credible interval from $-0.012$ to 0.140. The weighted QAP party coefficient is the only exception (0.051, $p=0.020$), and it disappears on the binary scale. The ERGM and LSM estimate the same alignment quantity under different covariates and dependence structures, and they agree. The projection methods test a different hypothesis, so they triangulate this result rather than replicate it. The inference that holds across methods is a null one. Once member activity and committee are taken into account, I find no evidence of partisan sorting in which members contact which agencies.
+
+# 6. Conclusion
+
+I asked whether partisanship organizes who meets which agencies in House hearings. In the 113th Congress, I find no evidence that it does. Co-partisans do not share agency audiences more than member activity predicts (CUG $p=0.48$; binary QAP $p=0.15$). Party-signed agency conservatism is not associated with member--agency contact in the ERGM (0.044, $p=0.18$) or the LSM (0.064, with an interval that includes zero). Observed committee--agency pairing dominates every model. Both network models converged. The ERGM reproduces member degrees and its own statistics but underpredicts four-cycles by about 8 percent ($p=0.02$). The LSM reproduces four-cycles and degree spread but predicts a few members with no contacts. Read with @ban2026, these results are consistent with a partisan gap that arises in the content of testimony rather than in the composition of audiences.
+
+For the extension paper, the main lesson concerns the selection that precedes each contact. A bureaucrat speaks to a member only when a germane hearing exists, the committee invites the agency, and the agency agrees to send a witness. Committee chairs and staff shape the first two steps, and agency leaders shape the third. The ideology of these actors may affect each choice. The modal committee proxy captures this process only in part, and it does so endogenously. Before I interpret a bipartite model as access, I need verified committee rosters and agency hearing jurisdictions to define which pairs could form. The content of exchanges then requires a separate model of the contacts that do occur. The projection results describe shared audiences among members, so I do not carry them over to member--agency tie formation.
+
